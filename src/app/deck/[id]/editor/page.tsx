@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, CardBody, Chip, Tooltip, Divider, Badge, Avatar, AvatarGroup, Input, Textarea, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
+import { Button, Card, CardBody, Chip, Tooltip, Divider, Badge, Avatar, AvatarGroup, Input, Textarea, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 import { ArrowLeft, ArrowRight, Undo2, Redo2, Download, Share2, Sparkles, Lock, Unlock, Copy, Trash2, Image, LayoutTemplate, Type, MessageSquare, Plus, ChevronLeft, ChevronRight, Monitor, Wand2, Zap, BarChart3, Lightbulb, Users, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
-const layoutIcons: Record<string, any> = { title: Lightbulb, content: Type, data: BarChart3, chart: TrendingUp, diagram: Zap, comparison: Users, quote: MessageSquare, closing: Monitor };
+const layoutIcons: Record<string, any> = { title: Lightbulb, content: Type, data: BarChart3, chart: TrendingUp, diagram: Zap, comparison: Users, quote: MessageSquare, closing: Monitor, two_column: LayoutTemplate };
 
 export default function EditorPage() {
   const { id } = useParams();
@@ -56,6 +56,30 @@ export default function EditorPage() {
     setRegenerating(true);
     try {
       await runRegenerateSlide({ slideId: currentSlide._id });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleToneChange = async (selectedTone: string) => {
+    if (!currentSlide || currentSlide.isLocked) return;
+    setRegenerating(true);
+    try {
+      await runRegenerateSlide({ slideId: currentSlide._id, tone: selectedTone });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleLengthChange = async (selectedLength: string) => {
+    if (!currentSlide || currentSlide.isLocked) return;
+    setRegenerating(true);
+    try {
+      await runRegenerateSlide({ slideId: currentSlide._id, length: selectedLength });
     } catch (e) {
       console.error(e);
     } finally {
@@ -161,11 +185,14 @@ export default function EditorPage() {
               const isActive = idx + 1 === selectedSlide;
               return (
                 <div key={slide._id} onClick={() => setSelectedSlide(idx + 1)} className={`relative p-2.5 rounded-xl cursor-pointer transition-all duration-200 border ${isActive ? "bg-[#7170FF]/15 border-[#7170FF]/40 shadow-sm" : "bg-[#0F1011] border-white/[0.06] hover:border-white/[0.15]"}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-default-400 w-4">{idx + 1}</span>
-                    <div className="w-10 h-6 bg-content2 rounded-md flex items-center justify-center"><Icon className="w-3.5 h-3.5 text-default-400" /></div>
-                    <div className="flex-1 min-w-0"><p className="text-xs text-foreground truncate">{slide.title}</p></div>
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs text-default-400 w-3">{idx + 1}</span>
+                    <div className="w-9 h-6 bg-[#151617] rounded border border-white/[0.05] flex items-center justify-center"><Icon className="w-3.5 h-3.5 text-default-400" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-foreground truncate font-medium">{slide.title || "Untitled Slide"}</p>
+                      <p className="text-[10px] text-default-500 capitalize">{slide.layout ? slide.layout.replace("_", " ") : "content"}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
                       {slide.isLocked && <Lock className="w-3 h-3 text-warning" />}
                     </div>
                   </div>
@@ -188,8 +215,8 @@ export default function EditorPage() {
               <div className="absolute bottom-6 right-6 text-xs text-default-400 font-mono tracking-wider">{selectedSlide} / {slides.length}</div>
               <div className="relative z-10 w-full">
                 {currentSlide?.layout === "title" && (
-                  <div className="text-center max-w-3xl mx-auto py-4">
-                    <Chip className="bg-[#7170FF]/15 text-[#7170FF] border border-[#7170FF]/30 mb-6 font-medium tracking-wide" size="sm">
+                  <div className="text-center max-w-3xl mx-auto py-4 animate-fade-in">
+                    <Chip className="bg-[#7170FF]/15 text-[#7170FF] border border-[#7170FF]/30 mb-6 font-semibold tracking-wide rounded-full" size="sm">
                       {deck?.type ? deck.type.toUpperCase() : "PRESENTATION"}
                     </Chip>
                     <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-white leading-tight mb-5 bg-clip-text text-transparent bg-gradient-to-b from-white to-default-300">
@@ -211,7 +238,7 @@ export default function EditorPage() {
                     )}
                   </div>
                 )}
-                {(currentSlide?.layout === "content" || currentSlide?.layout === "two_column" || currentSlide?.layout === "title_content") && (
+                {(currentSlide?.layout === "content" || currentSlide?.layout === "title_content") && (
                   <div className="max-w-3xl mx-auto">
                     <h2 className="text-3xl font-semibold text-white tracking-tight mb-8 border-l-3 border-[#7170FF] pl-4 leading-none">
                       {editTitle}
@@ -224,6 +251,79 @@ export default function EditorPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+                {currentSlide?.layout === "two_column" && (
+                  <div className="max-w-4xl mx-auto">
+                    <h2 className="text-3xl font-semibold text-white tracking-tight mb-8 border-l-3 border-[#7170FF] pl-4 leading-none">
+                      {editTitle}
+                    </h2>
+                    <div className="grid grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        {bullets.slice(0, Math.ceil(bullets.length / 2)).map((bullet: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#7170FF] mt-2.5 shrink-0" />
+                            <p className="text-base text-default-300 leading-relaxed">{bullet}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-4">
+                        {bullets.slice(Math.ceil(bullets.length / 2)).map((bullet: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#7170FF] mt-2.5 shrink-0" />
+                            <p className="text-base text-default-300 leading-relaxed">{bullet}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {currentSlide?.layout === "comparison" && (
+                  <div className="max-w-4xl mx-auto">
+                    <h2 className="text-3xl font-semibold text-white tracking-tight mb-8 text-center">
+                      {editTitle}
+                    </h2>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="p-6 bg-[#151617] rounded-xl border border-white/[0.06] shadow-lg">
+                        <h3 className="text-lg font-semibold text-[#7170FF] mb-4">
+                          {bullets[0]?.split(/:\s*|--\s*|-\s*/)[0] || "Option A"}
+                        </h3>
+                        <div className="space-y-3">
+                          {bullets.slice(1, Math.ceil(bullets.length / 2) + 1).map((bullet: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-sm text-default-300">
+                              <div className="w-1 h-1 rounded-full bg-[#7170FF] mt-2 shrink-0" />
+                              <p>{bullet.replace(/^[^:-]+[:--]\s*/, "")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="p-6 bg-[#151617] rounded-xl border border-white/[0.06] shadow-lg">
+                        <h3 className="text-lg font-semibold text-success mb-4">
+                          {bullets[Math.ceil(bullets.length / 2) + 1]?.split(/:\s*|--\s*|-\s*/)[0] || "Option B"}
+                        </h3>
+                        <div className="space-y-3">
+                          {bullets.slice(Math.ceil(bullets.length / 2) + 2).map((bullet: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-sm text-default-300">
+                              <div className="w-1 h-1 rounded-full bg-success mt-2 shrink-0" />
+                              <p>{bullet.replace(/^[^:-]+[:--]\s*/, "")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {currentSlide?.layout === "quote" && (
+                  <div className="max-w-3xl mx-auto py-6 text-center relative">
+                    <span className="text-8xl font-serif text-[#7170FF]/25 absolute -top-8 left-1/2 -translate-x-1/2 pointer-events-none select-none">“</span>
+                    <h2 className="text-2xl md:text-3xl font-medium italic text-[#F7F8F8] leading-relaxed relative z-10">
+                      {editTitle || bullets[0]}
+                    </h2>
+                    {bullets.length > 0 && (
+                      <p className="text-base text-[#A1A5AE] mt-6 tracking-wide font-medium">
+                        — {bullets[bullets.length - 1]}
+                      </p>
+                    )}
                   </div>
                 )}
                 {currentSlide?.layout === "data" && (
@@ -305,7 +405,7 @@ export default function EditorPage() {
                     )}
                   </div>
                 )}
-                {!["title", "content", "two_column", "title_content", "data", "chart", "closing"].includes(currentSlide?.layout) && (
+                {!["title", "content", "two_column", "title_content", "data", "chart", "comparison", "quote", "closing"].includes(currentSlide?.layout) && (
                   <div className="max-w-3xl mx-auto">
                     <h2 className="text-3xl font-semibold text-white tracking-tight mb-4">{editTitle}</h2>
                     <p className="text-lg text-default-400">Content for this layout is ready to generate.</p>
@@ -332,9 +432,29 @@ export default function EditorPage() {
             <div>
               <label className="text-xs text-default-500 mb-2 block uppercase tracking-wider">AI Actions</label>
               <div className="space-y-2">
-                <Button size="sm" className="w-full bg-primary/20 text-primary border border-primary/30" startContent={<Sparkles className="w-4 h-4" />} onPress={handleRegenerate} isLoading={regenerating}>Regenerate Slide</Button>
-                <Button size="sm" variant="flat" startContent={<Wand2 className="w-4 h-4" />}>Change Tone</Button>
-                <Button size="sm" variant="flat" startContent={<Type className="w-4 h-4" />}>Expand / Shorten</Button>
+                <Button size="sm" className="w-full bg-primary/20 text-primary border border-primary/30 font-semibold" startContent={<Sparkles className="w-4 h-4" />} onPress={handleRegenerate} isLoading={regenerating}>Regenerate Slide</Button>
+                
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button size="sm" variant="flat" className="w-full" startContent={<Wand2 className="w-4 h-4" />}>Change Tone</Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Change tone actions" className="bg-[#0F1011] border border-white/[0.08] text-white" onAction={(key) => handleToneChange(key as string)}>
+                    <DropdownItem key="formal" className="hover:bg-[#151617] text-white">Formal & Professional</DropdownItem>
+                    <DropdownItem key="persuasive" className="hover:bg-[#151617] text-white">Persuasive</DropdownItem>
+                    <DropdownItem key="casual" className="hover:bg-[#151617] text-white">Casual & Friendly</DropdownItem>
+                    <DropdownItem key="technical" className="hover:bg-[#151617] text-white">Technical & Precise</DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+                
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button size="sm" variant="flat" className="w-full" startContent={<Type className="w-4 h-4" />}>Expand / Shorten</Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Expand or shorten actions" className="bg-[#0F1011] border border-white/[0.08] text-white" onAction={(key) => handleLengthChange(key as string)}>
+                    <DropdownItem key="expand" className="hover:bg-[#151617] text-white">Expand content</DropdownItem>
+                    <DropdownItem key="shorten" className="hover:bg-[#151617] text-white">Shorten content</DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
               </div>
             </div>
             <Divider className="bg-default-200" />
@@ -347,6 +467,8 @@ export default function EditorPage() {
                   { label: "Two Col", key: "two_column" },
                   { label: "Data", key: "data" },
                   { label: "Chart", key: "chart" },
+                  { label: "Comparison", key: "comparison" },
+                  { label: "Quote", key: "quote" },
                   { label: "Closing", key: "closing" }
                 ].map((l) => {
                   const isSelected = l.key === currentSlide?.layout;

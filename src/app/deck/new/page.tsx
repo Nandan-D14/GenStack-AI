@@ -1,7 +1,5 @@
 "use client";
 
-import { Button, Card, CardBody, Input, Tabs, Tab, Textarea, Select, SelectItem } from "@heroui/react";
-import { Wand2, FileText, Globe, List, ArrowRight, Zap, Sliders } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation } from "convex/react";
@@ -9,15 +7,10 @@ import { api } from "../../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 
 export default function NewDeckPage() {
-  const [activeTab, setActiveTab] = useState("prompt");
   const [prompt, setPrompt] = useState("");
-  const [notes, setNotes] = useState("");
-  const [url, setUrl] = useState("");
-  const [bullets, setBullets] = useState("");
-  
-  const [deckType, setDeckType] = useState("pitch");
-  const [tone, setTone] = useState("formal");
-  const [audience, setAudience] = useState("Investors");
+  const [tone, setTone] = useState("Professional");
+  const [audience, setAudience] = useState("Executive Board");
+  const [slidesCount, setSlidesCount] = useState(12);
   const [isGenerating, setIsGenerating] = useState(false);
   
   const router = useRouter();
@@ -26,31 +19,13 @@ export default function NewDeckPage() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     
-    // Get prompt based on active tab
-    let fullPrompt = "";
-    let displayTitle = "New Presentation";
-    
-    if (activeTab === "prompt") {
-      fullPrompt = prompt;
-      displayTitle = prompt.slice(0, 60);
-    } else if (activeTab === "upload") {
-      fullPrompt = `Convert notes: ${notes}`;
-      displayTitle = "Document Presentation";
-    } else if (activeTab === "url") {
-      fullPrompt = `Extract from URL: ${url}`;
-      displayTitle = url.replace(/(^\w+:|^)\/\//, "").slice(0, 40);
-    } else if (activeTab === "notes") {
-      fullPrompt = `Structure bullets: ${bullets}`;
-      displayTitle = "Structured Presentation";
-    }
-    
     try {
       const newDeckId = await runCreateDeck({
-        title: displayTitle || "New Presentation",
-        type: deckType,
-        tone: tone,
-        objective: fullPrompt || "General outline generation",
-        audience: audience || undefined
+        title: prompt.slice(0, 60) || "New Presentation",
+        type: "pitch",
+        tone: tone.toLowerCase(),
+        objective: prompt || "General outline generation",
+        audience: audience
       });
       router.push(`/deck/${newDeckId}/outline`);
     } catch (e) {
@@ -60,227 +35,159 @@ export default function NewDeckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090A] text-foreground">
-      {/* Header */}
-      <div className="flex items-center justify-between px-8 py-4 border-b border-white/[0.08] bg-[#0F1011]/50 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#7170FF] rounded-lg flex items-center justify-center shadow-md shadow-[#7170FF]/25">
-            <Zap className="w-4 h-4 text-white" />
+    <div className="bg-background text-on-background font-body-md antialiased overflow-hidden selection:bg-primary/20 selection:text-primary">
+      <div className="flex h-screen w-full">
+        {/* SideNavBar Component */}
+        <nav className="hidden md:flex flex-col h-screen sticky top-0 py-md px-sm w-64 bg-surface-container-low border-r border-border shrink-0">
+          {/* Header */}
+          <div className="mb-xl px-4 flex items-center gap-sm">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-on-primary" data-icon="dashboard">dashboard</span>
+            </div>
+            <div>
+              <h2 className="font-headline-sm text-headline-sm font-bold text-primary tracking-tight">GenStackAI Workspace</h2>
+              <p className="font-label-sm text-label-sm text-on-surface-variant">Pro Plan</p>
+            </div>
           </div>
-          <span className="font-semibold text-white tracking-wide">Create Presentation</span>
-        </div>
-        <Link href="/dashboard" className="text-sm text-default-400 hover:text-white transition-colors">
-          Cancel
-        </Link>
-      </div>
-
-      <div className="max-w-6xl mx-auto pt-12 px-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-white tracking-tight">Create your presentation</h1>
-          <p className="text-default-400 mt-2">Enter your ideas or upload source material to start generating slides.</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* Left Column: Intake Options */}
-          <div className="lg:col-span-2 space-y-6">
-            <Tabs 
-              aria-label="Input options" 
-              color="primary" 
-              variant="underlined"
-              selectedKey={activeTab}
-              onSelectionChange={(key) => setActiveTab(key as string)}
-              classNames={{
-                tabList: "border-b border-white/[0.08] gap-6",
-                cursor: "bg-[#7170FF]",
-                tab: "text-default-400 hover:text-white transition-colors font-medium px-0",
-              }}
-            >
-              <Tab 
-                key="prompt" 
-                title={
-                  <div className="flex items-center gap-2 py-2">
-                    <Wand2 className="w-4 h-4" />
-                    Prompt
-                  </div>
-                }
-              >
-                <Card className="bg-[#0F1011] border border-white/[0.08] mt-4 shadow-xl rounded-2xl">
-                  <CardBody className="p-6">
-                    <Textarea 
-                      label="Describe your presentation" 
-                      placeholder="e.g. Create a pitch deck for an AI wardrobe startup for investors." 
-                      value={prompt} 
-                      onChange={(e) => setPrompt(e.target.value)} 
-                      minRows={6} 
-                      classNames={{
-                        label: "text-xs font-semibold text-default-400 uppercase tracking-wider mb-2",
-                        inputWrapper: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] focus-within:!border-[#7170FF]/50 rounded-xl"
-                      }}
-                    />
-                  </CardBody>
-                </Card>
-              </Tab>
-
-              <Tab 
-                key="upload" 
-                title={
-                  <div className="flex items-center gap-2 py-2">
-                    <FileText className="w-4 h-4" />
-                    Upload Notes
-                  </div>
-                }
-              >
-                <Card className="bg-[#0F1011] border border-white/[0.08] mt-4 shadow-xl rounded-2xl">
-                  <CardBody className="p-6 space-y-4">
-                    <div className="border border-dashed border-white/[0.08] bg-[#151617]/50 rounded-xl p-8 text-center cursor-pointer hover:bg-[#151617]/80 transition-colors">
-                      <FileText className="w-8 h-8 text-default-500 mx-auto mb-3" />
-                      <p className="text-white font-medium text-sm">Drop your PDF, DOCX, or TXT file here</p>
-                      <p className="text-xs text-default-500 mt-1">Maximum file size 10MB</p>
-                    </div>
-                    <Textarea 
-                      label="Or paste your raw content" 
-                      placeholder="Paste your meeting notes, articles, or transcripts here..." 
-                      value={notes} 
-                      onChange={(e) => setNotes(e.target.value)} 
-                      minRows={5}
-                      classNames={{
-                        label: "text-xs font-semibold text-default-400 uppercase tracking-wider mb-2",
-                        inputWrapper: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] focus-within:!border-[#7170FF]/50 rounded-xl"
-                      }}
-                    />
-                  </CardBody>
-                </Card>
-              </Tab>
-
-              <Tab 
-                key="url" 
-                title={
-                  <div className="flex items-center gap-2 py-2">
-                    <Globe className="w-4 h-4" />
-                    Web URL
-                  </div>
-                }
-              >
-                <Card className="bg-[#0F1011] border border-white/[0.08] mt-4 shadow-xl rounded-2xl">
-                  <CardBody className="p-6">
-                    <Input 
-                      label="Website URL" 
-                      placeholder="https://example.com/about-us" 
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      classNames={{
-                        label: "text-xs font-semibold text-default-400 uppercase tracking-wider mb-2",
-                        inputWrapper: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] focus-within:!border-[#7170FF]/50 rounded-xl text-white"
-                      }}
-                    />
-                    <p className="text-xs text-default-500 mt-2">GenStack AI will scrape the webpage content and extract key presentation concepts.</p>
-                  </CardBody>
-                </Card>
-              </Tab>
-
-              <Tab 
-                key="notes" 
-                title={
-                  <div className="flex items-center gap-2 py-2">
-                    <List className="w-4 h-4" />
-                    Outline Notes
-                  </div>
-                }
-              >
-                <Card className="bg-[#0F1011] border border-white/[0.08] mt-4 shadow-xl rounded-2xl">
-                  <CardBody className="p-6">
-                    <Textarea 
-                      label="Your bullet outline" 
-                      placeholder="- Topic: Market Disruption&#10;- Subtopic: Customer pain points&#10;- Solutions: Automated AI models" 
-                      value={bullets} 
-                      onChange={(e) => setBullets(e.target.value)} 
-                      minRows={6}
-                      classNames={{
-                        label: "text-xs font-semibold text-default-400 uppercase tracking-wider mb-2",
-                        inputWrapper: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] focus-within:!border-[#7170FF]/50 rounded-xl text-white"
-                      }}
-                    />
-                  </CardBody>
-                </Card>
-              </Tab>
-            </Tabs>
+          {/* CTA */}
+          <button className="w-full mb-md bg-primary text-on-primary py-3 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-sm hover:opacity-90 transition-opacity">
+            <span className="material-symbols-outlined" data-icon="add">add</span>
+            New Presentation
+          </button>
+          {/* Navigation Links */}
+          <div className="flex-1 space-y-xs overflow-y-auto">
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="/dashboard">
+              <span className="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+              <span className="font-label-md text-label-md">My Decks</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="collections_bookmark">collections_bookmark</span>
+              <span className="font-label-md text-label-md">Templates</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+              <span className="font-label-md text-label-md">Assets</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="insights">insights</span>
+              <span className="font-label-md text-label-md">Analytics</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="settings">settings</span>
+              <span className="font-label-md text-label-md">Settings</span>
+            </Link>
           </div>
-
-          {/* Right Column: Shared Settings & Submit */}
-          <div className="space-y-6">
-            <Card className="bg-[#0F1011] border border-white/[0.08] shadow-xl rounded-2xl">
-              <CardBody className="p-6 space-y-6">
-                <div className="flex items-center gap-2 text-[#7170FF]">
-                  <Sliders className="w-4 h-4" />
-                  <h3 className="font-semibold text-white tracking-wide text-sm">Deck Configurations</h3>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[11px] font-semibold text-default-500 uppercase tracking-wider block mb-2">Deck Type</label>
-                    <Select 
-                      aria-label="Deck Type"
-                      selectedKeys={[deckType]} 
-                      onSelectionChange={(keys) => setDeckType(Array.from(keys)[0] as string)}
-                      size="sm"
-                      classNames={{
-                        trigger: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-white"
-                      }}
-                    >
-                      <SelectItem key="pitch" className="text-white bg-[#0F1011] hover:bg-[#151617]">Startup Pitch Deck</SelectItem>
-                      <SelectItem key="sales" className="text-white bg-[#0F1011] hover:bg-[#151617]">Sales Pitch</SelectItem>
-                      <SelectItem key="marketing" className="text-white bg-[#0F1011] hover:bg-[#151617]">Marketing Strategy</SelectItem>
-                      <SelectItem key="report" className="text-white bg-[#0F1011] hover:bg-[#151617]">Report Summary</SelectItem>
-                      <SelectItem key="training" className="text-white bg-[#0F1011] hover:bg-[#151617]">Training / HR</SelectItem>
-                    </Select>
+          {/* Footer Links */}
+          <div className="mt-auto pt-md border-t border-border space-y-xs">
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="help">help</span>
+              <span className="font-label-md text-label-md">Help</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="/">
+              <span className="material-symbols-outlined" data-icon="logout">logout</span>
+              <span className="font-label-md text-label-md">Logout</span>
+            </Link>
+          </div>
+        </nav>
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+          {/* Atmospheric Gradient */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none"></div>
+          <div className="flex-1 overflow-y-auto px-gutter py-xl relative z-10 flex flex-col items-center justify-center">
+            <div className="w-full max-w-3xl mx-auto flex flex-col gap-xl">
+              {/* Page Header */}
+              <header className="text-center space-y-sm">
+                <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Create Presentation</h1>
+                <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl mx-auto">Describe your topic, upload reference materials, or provide a URL. Our AI will craft a structured deck tailored to your needs.</p>
+              </header>
+              {/* Command Center Layout */}
+              <div className="flex flex-col gap-lg w-full">
+                {/* Settings Toolbar */}
+                <div className="flex flex-wrap items-center justify-center gap-sm">
+                  {/* Tone */}
+                  <div className="flex items-center gap-1 bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 p-1">
+                    {["Professional", "Creative", "Persuasive"].map((t) => (
+                      <button 
+                        key={t}
+                        onClick={() => setTone(t)}
+                        className={`${tone === t ? "bg-surface-container-highest text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"} px-4 py-1.5 rounded-full font-label-sm text-label-sm transition-colors`}
+                      >
+                        {t}
+                      </button>
+                    ))}
                   </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-default-500 uppercase tracking-wider block mb-2">Tone</label>
-                    <Select 
-                      aria-label="Tone"
-                      selectedKeys={[tone]} 
-                      onSelectionChange={(keys) => setTone(Array.from(keys)[0] as string)}
-                      size="sm"
-                      classNames={{
-                        trigger: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-white"
-                      }}
-                    >
-                      <SelectItem key="formal" className="text-white bg-[#0F1011] hover:bg-[#151617]">Formal & Professional</SelectItem>
-                      <SelectItem key="persuasive" className="text-white bg-[#0F1011] hover:bg-[#151617]">Persuasive</SelectItem>
-                      <SelectItem key="casual" className="text-white bg-[#0F1011] hover:bg-[#151617]">Casual & Friendly</SelectItem>
-                      <SelectItem key="technical" className="text-white bg-[#0F1011] hover:bg-[#151617]">Technical & Precise</SelectItem>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Input 
-                      label="Target Audience" 
-                      placeholder="e.g. VCs, Internal Management" 
-                      value={audience} 
+                  {/* Audience */}
+                  <div className="relative bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 flex items-center">
+                    <span className="material-symbols-outlined pl-4 text-on-surface-variant text-[18px]" data-icon="groups">groups</span>
+                    <select 
+                      value={audience}
                       onChange={(e) => setAudience(e.target.value)}
-                      size="sm"
-                      classNames={{
-                        label: "text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-2",
-                        inputWrapper: "bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] focus-within:!border-[#7170FF]/50 rounded-xl text-white"
-                      }}
+                      className="appearance-none bg-transparent border-none py-1.5 pr-10 pl-2 font-label-sm text-label-sm text-on-surface-variant focus:outline-none focus:ring-0 cursor-pointer [&>option]:bg-surface-container-low"
+                    >
+                      <option>Executive Board</option>
+                      <option>General Public</option>
+                      <option>Technical Team</option>
+                      <option>Investors</option>
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]" data-icon="expand_more">expand_more</span>
+                  </div>
+                  {/* Slides */}
+                  <div className="flex items-center gap-sm bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 px-4 py-1.5">
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px]" data-icon="view_carousel">view_carousel</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant w-16">{slidesCount} Slides</span>
+                    <input 
+                      className="w-24 accent-primary h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
+                      max="30" 
+                      min="5" 
+                      type="range" 
+                      value={slidesCount}
+                      onChange={(e) => setSlidesCount(parseInt(e.target.value))}
                     />
                   </div>
                 </div>
-
-                <Button 
-                  color="primary" 
-                  className="w-full h-11 bg-[#7170FF] text-white hover:bg-[#605eff] font-medium rounded-xl shadow-lg shadow-[#7170FF]/20"
-                  endContent={<ArrowRight className="w-4 h-4" />} 
-                  onPress={handleGenerate} 
-                  isLoading={isGenerating}
-                >
-                  Generate Outline
-                </Button>
-              </CardBody>
-            </Card>
+                {/* Main Prompt Area */}
+                <div className="group relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-border to-border rounded-[32px] blur opacity-30 group-focus-within:opacity-100 transition duration-500"></div>
+                  <div className="relative bg-surface-container-low/80 backdrop-blur-xl rounded-[32px] border border-border flex flex-col overflow-hidden shadow-2xl">
+                    <div className="p-lg pb-sm">
+                      <textarea 
+                        className="w-full bg-transparent border-none outline-none font-body-lg text-body-lg text-primary placeholder:text-on-surface-variant/70 resize-none min-h-[160px]" 
+                        placeholder="What's your presentation about? e.g., A quarterly business review focusing on Q3 SaaS growth, highlighting key metrics in MRR and user acquisition..."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                      ></textarea>
+                    </div>
+                    {/* Integrated Sources and CTA */}
+                    <div className="px-md py-md border-t border-border/40 bg-surface/30 flex flex-wrap items-center justify-between gap-md">
+                      {/* Sources Actions */}
+                      <div className="flex items-center gap-xs">
+                        <button className="flex items-center gap-xs px-4 py-2 rounded-full bg-surface-container-highest/50 hover:bg-surface-container-highest border border-border/50 transition-colors text-on-surface-variant hover:text-primary">
+                          <span className="material-symbols-outlined text-[18px]" data-icon="upload_file">upload_file</span>
+                          <span className="font-label-sm text-label-sm">Upload PDF/DOCX</span>
+                        </button>
+                        <button className="flex items-center gap-xs px-4 py-2 rounded-full bg-surface-container-highest/50 hover:bg-surface-container-highest border border-border/50 transition-colors text-on-surface-variant hover:text-primary">
+                          <span className="material-symbols-outlined text-[18px]" data-icon="link">link</span>
+                          <span className="font-label-sm text-label-sm">Add URL</span>
+                        </button>
+                      </div>
+                      {/* Primary Action */}
+                      <button 
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        className="bg-primary text-neutral-bg px-6 py-3 rounded-full font-label-md text-label-md flex items-center justify-center gap-sm hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(255,255,255,0.15)] ml-auto disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-[20px]" data-icon="auto_awesome">
+                          {isGenerating ? "hourglass_empty" : "auto_awesome"}
+                        </span>
+                        {isGenerating ? "Generating..." : "Generate with AI"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
