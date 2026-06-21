@@ -33,6 +33,8 @@ export default defineSchema({
     userId: v.id("users"),
     workspaceId: v.optional(v.id("workspaces")),
     brandKitId: v.optional(v.id("brandKits")),
+    c1ArtifactId: v.optional(v.string()),
+    c1Response: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
   }).index("by_userId", ["userId"]),

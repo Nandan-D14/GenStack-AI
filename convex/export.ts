@@ -1,29 +1,8 @@
 "use node";
 
-import { action, internalQuery } from "./_generated/server";
+import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-
-/**
- * Internal query to fetch a deck and its slides for the export action.
- * This avoids auth issues when called from within a server action.
- */
-export const getDeckForExport = internalQuery({
-  args: { deckId: v.id("decks") },
-  handler: async (ctx, args) => {
-    const deck = await ctx.db.get(args.deckId);
-    if (!deck) return null;
-
-    const slides = await ctx.db
-      .query("slides")
-      .withIndex("by_deckId", (q) => q.eq("deckId", args.deckId))
-      .collect();
-
-    slides.sort((a, b) => a.order - b.order);
-
-    return { ...deck, slides };
-  },
-});
 
 /**
  * Generate a real PPTX file from a deck and its slides.
@@ -38,8 +17,8 @@ export const generatePptx = action({
     // Dynamically import pptxgenjs (Node.js runtime)
     const PptxGenJS = (await import("pptxgenjs")).default;
 
-    // Fetch the deck using the internal query
-    const deck: any = await ctx.runQuery(internal.export.getDeckForExport, {
+    // Fetch the deck using the internal query in decks.ts
+    const deck: any = await ctx.runQuery(internal.decks.getDeckForExport, {
       deckId: args.deckId,
     });
 

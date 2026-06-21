@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 // Helper to get or create user based on authenticated identity
@@ -50,16 +50,16 @@ export const getById = query({
   handler: async (ctx, args) => {
     const userId = await getOrCreateUser(ctx);
     if (!userId) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const deck = await ctx.db.get(args.id);
     if (!deck) {
-      throw new Error("Deck not found");
+      return null;
     }
 
     if (deck.userId !== userId) {
-      throw new Error("Unauthorized access to deck");
+      return null;
     }
 
     const slides = await ctx.db
@@ -214,4 +214,54 @@ export const exportDeck = mutation({
     };
   },
 });
+
+/**
+ * Internal query to fetch a deck and its slides for the export action.
+ * This avoids auth issues when called from within a server action.
+ */
+export const getDeckForExport = internalQuery({
+  args: { deckId: v.id("decks") },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.deckId);
+    if (!deck) return null;
+
+    const slides = await ctx.db
+      .query("slides")
+      .withIndex("by_deckId", (q) => q.eq("deckId", args.deckId))
+      .collect();
+
+    slides.sort((a, b) => a.order - b.order);
+
+    return { ...deck, slides };
+  },
+});
+
+// Update the deck with C1 Artifact ID and DSL response
+export const updateC1Data = mutation({
+  args: {
+    id: v.id("decks"),
+    c1ArtifactId: v.optional(v.string()),
+    c1Response: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+
+    const updates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (args.c1ArtifactId !== undefined) {
+      updates.c1ArtifactId = args.c1ArtifactId;
+    }
+    if (args.c1Response !== undefined) {
+      updates.c1Response = args.c1Response;
+    }
+
+    await ctx.db.patch(args.id, updates);
+    return { success: true };
+  },
+});
+
 

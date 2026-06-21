@@ -21,7 +21,14 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.modules = [
       path.resolve(__dirname, 'node_modules'),
+      'node_modules',
     ];
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'property-information/find': path.resolve(__dirname, 'node_modules/property-information/lib/find.js'),
+      'property-information/normalize': path.resolve(__dirname, 'node_modules/property-information/lib/normalize.js'),
+      'property-information/html': path.resolve(__dirname, 'node_modules/property-information/lib/html.js'),
+    };
     return config;
   },
 };
