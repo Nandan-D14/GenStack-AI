@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
+import FileUploader from "../../../components/FileUploader";
 
 export default function NewDeckPage() {
   const [prompt, setPrompt] = useState("");
@@ -56,14 +57,16 @@ export default function NewDeckPage() {
           </Tab>
           <Tab key="upload" title={<div className="flex items-center gap-2"><FileText className="w-4 h-4" />Upload</div>}>
             <Card className="bg-content1 border border-default mt-4">
-              <CardBody className="p-10 text-center">
-                <div className="border-2 border-dashed border-default-200 rounded-xl p-12">
-                  <FileText className="w-10 h-10 text-default-500 mx-auto mb-4" />
-                  <p className="text-foreground font-medium mb-2">Drop a PDF, DOCX, or TXT file</p>
-                  <p className="text-sm text-default-500 mb-4">or paste your notes below</p>
-                  <Textarea placeholder="Paste your meeting notes, bullet points, or raw content here..." minRows={6} className="text-left" />
-                  <Button color="primary" className="mt-4" onPress={handleGenerate}>Convert to Slides</Button>
-                </div>
+              <CardBody className="p-6">
+                <FileUploader
+                  accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
+                  maxSizeMB={10}
+                  onFileUploaded={(storageId, fileName) => {
+                    console.log("File uploaded:", fileName, storageId);
+                  }}
+                />
+                <Textarea placeholder="Or paste your meeting notes, bullet points, or raw content here..." minRows={4} className="text-left mt-4" />
+                <Button color="primary" className="mt-4" onPress={handleGenerate}>Convert to Slides</Button>
               </CardBody>
             </Card>
           </Tab>

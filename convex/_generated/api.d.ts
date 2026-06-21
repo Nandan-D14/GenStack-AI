@@ -9,6 +9,7 @@
  */
 
 import type * as decks from "../decks.js";
+import type * as export_ from "../export.js";
 import type * as media from "../media.js";
 import type * as slides from "../slides.js";
 
@@ -20,6 +21,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   decks: typeof decks;
+  export: typeof export_;
   media: typeof media;
   slides: typeof slides;
 }>;

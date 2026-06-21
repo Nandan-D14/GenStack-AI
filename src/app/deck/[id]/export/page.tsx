@@ -5,7 +5,7 @@ import { ArrowLeft, Download, FileDown, FileText, Check, X, Sparkles, Shield, Mo
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
 export default function ExportPage() {
@@ -16,18 +16,18 @@ export default function ExportPage() {
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
   const slides = deck?.slides || [];
-  const runExportDeck = useMutation(api.decks.exportDeck);
+  const runExportPptx = useAction(api.export.generatePptx);
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      const data = await runExportDeck({ deckId: id as any, format: format });
+      const data = await runExportPptx({ deckId: id as any });
       setExporting(false);
       setDone(true);
       if (data?.downloadUrl) {
         const a = document.createElement("a");
         a.href = data.downloadUrl;
-        a.download = `${deck?.title || "presentation"}.pptx`;
+        a.download = data.fileName || `${deck?.title || "presentation"}.pptx`;
         a.click();
       }
     } catch (e) {
