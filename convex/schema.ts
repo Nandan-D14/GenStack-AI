@@ -84,6 +84,7 @@ export default defineSchema({
 
   mediaFiles: defineTable({
     userId: v.id("users"),
+    storageId: v.string(), // Convex storage ID
     fileName: v.string(),
     fileUrl: v.string(),
     fileType: v.string(), // "image" | "pdf" | "docx"
