@@ -1,7 +1,5 @@
 "use client";
 
-import { Button, Card, CardBody, Input, Tabs, Tab, Textarea } from "@heroui/react";
-import { Wand2, FileText, Globe, List, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation } from "convex/react";
@@ -10,17 +8,24 @@ import { useRouter } from "next/navigation";
 
 export default function NewDeckPage() {
   const [prompt, setPrompt] = useState("");
+  const [tone, setTone] = useState("Professional");
+  const [audience, setAudience] = useState("Executive Board");
+  const [slidesCount, setSlidesCount] = useState(12);
   const [isGenerating, setIsGenerating] = useState(false);
+  
   const router = useRouter();
   const runCreateDeck = useMutation(api.decks.create);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    
     try {
       const newDeckId = await runCreateDeck({
         title: prompt.slice(0, 60) || "New Presentation",
         type: "pitch",
-        tone: "formal",
+        tone: tone.toLowerCase(),
+        objective: prompt || "General outline generation",
+        audience: audience
       });
       router.push(`/deck/${newDeckId}/outline`);
     } catch (e) {
@@ -30,60 +35,159 @@ export default function NewDeckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex items-center justify-between px-8 py-4 border-b border-divider">
-        <div className="flex items-center gap-2"><Zap className="w-5 h-5 text-primary" /><span className="font-semibold text-foreground">New Presentation</span></div>
-        <Link href="/dashboard" className="text-sm text-default-400 hover:text-foreground">Cancel</Link>
-      </div>
-      <div className="max-w-3xl mx-auto pt-16 px-6">
-        <h1 className="text-3xl font-bold text-foreground mb-2">What are you building?</h1>
-        <p className="text-default-400 mb-10">Start with a prompt, upload notes, or paste a link.</p>
-        <Tabs aria-label="Input options" color="primary" variant="underlined">
-          <Tab key="prompt" title={<div className="flex items-center gap-2"><Wand2 className="w-4 h-4" />Prompt</div>}>
-            <Card className="bg-content1 border border-default mt-4">
-              <CardBody className="p-6">
-                <Textarea label="Describe your presentation" placeholder="e.g. Create a pitch deck for an AI wardrobe startup for investors." value={prompt} onChange={(e) => setPrompt(e.target.value)} minRows={5} className="mb-4" />
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <span className="text-xs text-default-500 bg-content2 px-2 py-1 rounded-full">Startup Pitch</span>
-                    <span className="text-xs text-default-500 bg-content2 px-2 py-1 rounded-full">Sales Deck</span>
-                    <span className="text-xs text-default-500 bg-content2 px-2 py-1 rounded-full">Report</span>
+    <div className="bg-background text-on-background font-body-md antialiased overflow-hidden selection:bg-primary/20 selection:text-primary">
+      <div className="flex h-screen w-full">
+        {/* SideNavBar Component */}
+        <nav className="hidden md:flex flex-col h-screen sticky top-0 py-md px-sm w-64 bg-surface-container-low border-r border-border shrink-0">
+          {/* Header */}
+          <div className="mb-xl px-4 flex items-center gap-sm">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-on-primary" data-icon="dashboard">dashboard</span>
+            </div>
+            <div>
+              <h2 className="font-headline-sm text-headline-sm font-bold text-primary tracking-tight">GenStackAI Workspace</h2>
+              <p className="font-label-sm text-label-sm text-on-surface-variant">Pro Plan</p>
+            </div>
+          </div>
+          {/* CTA */}
+          <button className="w-full mb-md bg-primary text-on-primary py-3 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-sm hover:opacity-90 transition-opacity">
+            <span className="material-symbols-outlined" data-icon="add">add</span>
+            New Presentation
+          </button>
+          {/* Navigation Links */}
+          <div className="flex-1 space-y-xs overflow-y-auto">
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="/dashboard">
+              <span className="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+              <span className="font-label-md text-label-md">My Decks</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="collections_bookmark">collections_bookmark</span>
+              <span className="font-label-md text-label-md">Templates</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+              <span className="font-label-md text-label-md">Assets</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="insights">insights</span>
+              <span className="font-label-md text-label-md">Analytics</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="settings">settings</span>
+              <span className="font-label-md text-label-md">Settings</span>
+            </Link>
+          </div>
+          {/* Footer Links */}
+          <div className="mt-auto pt-md border-t border-border space-y-xs">
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="#">
+              <span className="material-symbols-outlined" data-icon="help">help</span>
+              <span className="font-label-md text-label-md">Help</span>
+            </Link>
+            <Link className="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-surface-container transition-all duration-200 rounded-lg" href="/">
+              <span className="material-symbols-outlined" data-icon="logout">logout</span>
+              <span className="font-label-md text-label-md">Logout</span>
+            </Link>
+          </div>
+        </nav>
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+          {/* Atmospheric Gradient */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none"></div>
+          <div className="flex-1 overflow-y-auto px-gutter py-xl relative z-10 flex flex-col items-center justify-center">
+            <div className="w-full max-w-3xl mx-auto flex flex-col gap-xl">
+              {/* Page Header */}
+              <header className="text-center space-y-sm">
+                <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Create Presentation</h1>
+                <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl mx-auto">Describe your topic, upload reference materials, or provide a URL. Our AI will craft a structured deck tailored to your needs.</p>
+              </header>
+              {/* Command Center Layout */}
+              <div className="flex flex-col gap-lg w-full">
+                {/* Settings Toolbar */}
+                <div className="flex flex-wrap items-center justify-center gap-sm">
+                  {/* Tone */}
+                  <div className="flex items-center gap-1 bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 p-1">
+                    {["Professional", "Creative", "Persuasive"].map((t) => (
+                      <button 
+                        key={t}
+                        onClick={() => setTone(t)}
+                        className={`${tone === t ? "bg-surface-container-highest text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"} px-4 py-1.5 rounded-full font-label-sm text-label-sm transition-colors`}
+                      >
+                        {t}
+                      </button>
+                    ))}
                   </div>
-                  <Button color="primary" endContent={<ArrowRight className="w-4 h-4" />} onPress={handleGenerate} isLoading={isGenerating}>Generate Outline</Button>
+                  {/* Audience */}
+                  <div className="relative bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 flex items-center">
+                    <span className="material-symbols-outlined pl-4 text-on-surface-variant text-[18px]" data-icon="groups">groups</span>
+                    <select 
+                      value={audience}
+                      onChange={(e) => setAudience(e.target.value)}
+                      className="appearance-none bg-transparent border-none py-1.5 pr-10 pl-2 font-label-sm text-label-sm text-on-surface-variant focus:outline-none focus:ring-0 cursor-pointer [&>option]:bg-surface-container-low"
+                    >
+                      <option>Executive Board</option>
+                      <option>General Public</option>
+                      <option>Technical Team</option>
+                      <option>Investors</option>
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]" data-icon="expand_more">expand_more</span>
+                  </div>
+                  {/* Slides */}
+                  <div className="flex items-center gap-sm bg-surface-container-low/60 backdrop-blur-md rounded-full border border-border/50 px-4 py-1.5">
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px]" data-icon="view_carousel">view_carousel</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant w-16">{slidesCount} Slides</span>
+                    <input 
+                      className="w-24 accent-primary h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
+                      max="30" 
+                      min="5" 
+                      type="range" 
+                      value={slidesCount}
+                      onChange={(e) => setSlidesCount(parseInt(e.target.value))}
+                    />
+                  </div>
                 </div>
-              </CardBody>
-            </Card>
-          </Tab>
-          <Tab key="upload" title={<div className="flex items-center gap-2"><FileText className="w-4 h-4" />Upload</div>}>
-            <Card className="bg-content1 border border-default mt-4">
-              <CardBody className="p-10 text-center">
-                <div className="border-2 border-dashed border-default-200 rounded-xl p-12">
-                  <FileText className="w-10 h-10 text-default-500 mx-auto mb-4" />
-                  <p className="text-foreground font-medium mb-2">Drop a PDF, DOCX, or TXT file</p>
-                  <p className="text-sm text-default-500 mb-4">or paste your notes below</p>
-                  <Textarea placeholder="Paste your meeting notes, bullet points, or raw content here..." minRows={6} className="text-left" />
-                  <Button color="primary" className="mt-4" onPress={handleGenerate}>Convert to Slides</Button>
+                {/* Main Prompt Area */}
+                <div className="group relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-border to-border rounded-[32px] blur opacity-30 group-focus-within:opacity-100 transition duration-500"></div>
+                  <div className="relative bg-surface-container-low/80 backdrop-blur-xl rounded-[32px] border border-border flex flex-col overflow-hidden shadow-2xl">
+                    <div className="p-lg pb-sm">
+                      <textarea 
+                        className="w-full bg-transparent border-none outline-none font-body-lg text-body-lg text-primary placeholder:text-on-surface-variant/70 resize-none min-h-[160px]" 
+                        placeholder="What's your presentation about? e.g., A quarterly business review focusing on Q3 SaaS growth, highlighting key metrics in MRR and user acquisition..."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                      ></textarea>
+                    </div>
+                    {/* Integrated Sources and CTA */}
+                    <div className="px-md py-md border-t border-border/40 bg-surface/30 flex flex-wrap items-center justify-between gap-md">
+                      {/* Sources Actions */}
+                      <div className="flex items-center gap-xs">
+                        <button className="flex items-center gap-xs px-4 py-2 rounded-full bg-surface-container-highest/50 hover:bg-surface-container-highest border border-border/50 transition-colors text-on-surface-variant hover:text-primary">
+                          <span className="material-symbols-outlined text-[18px]" data-icon="upload_file">upload_file</span>
+                          <span className="font-label-sm text-label-sm">Upload PDF/DOCX</span>
+                        </button>
+                        <button className="flex items-center gap-xs px-4 py-2 rounded-full bg-surface-container-highest/50 hover:bg-surface-container-highest border border-border/50 transition-colors text-on-surface-variant hover:text-primary">
+                          <span className="material-symbols-outlined text-[18px]" data-icon="link">link</span>
+                          <span className="font-label-sm text-label-sm">Add URL</span>
+                        </button>
+                      </div>
+                      {/* Primary Action */}
+                      <button 
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        className="bg-primary text-neutral-bg px-6 py-3 rounded-full font-label-md text-label-md flex items-center justify-center gap-sm hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(255,255,255,0.15)] ml-auto disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-[20px]" data-icon="auto_awesome">
+                          {isGenerating ? "hourglass_empty" : "auto_awesome"}
+                        </span>
+                        {isGenerating ? "Generating..." : "Generate with AI"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </CardBody>
-            </Card>
-          </Tab>
-          <Tab key="url" title={<div className="flex items-center gap-2"><Globe className="w-4 h-4" />URL</div>}>
-            <Card className="bg-content1 border border-default mt-4">
-              <CardBody className="p-6">
-                <Input label="Website URL" placeholder="https://example.com" className="mb-4" />
-                <Button color="primary" onPress={handleGenerate}>Extract & Generate</Button>
-              </CardBody>
-            </Card>
-          </Tab>
-          <Tab key="notes" title={<div className="flex items-center gap-2"><List className="w-4 h-4" />Notes</div>}>
-            <Card className="bg-content1 border border-default mt-4">
-              <CardBody className="p-6">
-                <Textarea label="Your bullet points" placeholder="- Problem: ...&#10;- Solution: ...&#10;- Market: ..." minRows={8} className="mb-4" />
-                <Button color="primary" onPress={handleGenerate}>Structure into Slides</Button>
-              </CardBody>
-            </Card>
-          </Tab>
-        </Tabs>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
