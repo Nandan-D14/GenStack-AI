@@ -348,7 +348,7 @@ export default function EditorPage() {
                               {bullets.slice(1, Math.ceil(bullets.length / 2) + 1).map((bullet: string, i: number) => (
                                 <div key={i} className="flex items-start gap-2 text-sm text-default-300">
                                   <div className="w-1 h-1 rounded-full bg-[#7170FF] mt-2 shrink-0" />
-                                  <p>{bullet.replace(/^[^:-]+[:--]\s*/, "")}</p>
+                                  <p>{bullet.replace(/^[^:-]+[:-]\s*/, "")}</p>
                                 </div>
                               ))}
                             </div>
@@ -361,7 +361,7 @@ export default function EditorPage() {
                               {bullets.slice(Math.ceil(bullets.length / 2) + 2).map((bullet: string, i: number) => (
                                 <div key={i} className="flex items-start gap-2 text-sm text-default-300">
                                   <div className="w-1 h-1 rounded-full bg-success mt-2 shrink-0" />
-                                  <p>{bullet.replace(/^[^:-]+[:--]\s*/, "")}</p>
+                                  <p>{bullet.replace(/^[^:-]+[:-]\s*/, "")}</p>
                                 </div>
                               ))}
                             </div>

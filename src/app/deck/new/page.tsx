@@ -241,7 +241,7 @@ export default function NewDeckPage() {
 
       {/* Upload File Modal */}
       <Modal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} size="lg" backdrop="blur" classNames={{
-        content: "bg-surface-container-low border border-border/50 rounded-2xl text-foreground"
+        base: "bg-surface-container-low border border-border/50 rounded-2xl text-foreground"
       }}>
         <ModalContent>
           <ModalHeader className="font-semibold text-lg pb-2">Upload Reference Material</ModalHeader>
@@ -265,7 +265,7 @@ export default function NewDeckPage() {
 
       {/* Add URL Modal */}
       <Modal isOpen={showUrlModal} onClose={() => setShowUrlModal(false)} size="md" backdrop="blur" classNames={{
-        content: "bg-surface-container-low border border-border/50 rounded-2xl text-foreground"
+        base: "bg-surface-container-low border border-border/50 rounded-2xl text-foreground"
       }}>
         <ModalContent>
           <ModalHeader className="font-semibold text-lg pb-2">Attach Web URL</ModalHeader>
