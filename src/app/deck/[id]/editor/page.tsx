@@ -191,9 +191,9 @@ export default function EditorPage() {
           </Button>
           <Divider orientation="vertical" className="h-6 bg-default-200" />
           <AvatarGroup size="sm" isBordered max={3}>
-            <Avatar src="https://api.dicebear.com/7.x/avataaars/svg?seed=editor-1" className="w-6 h-6" />
-            <Avatar src="https://api.dicebear.com/7.x/avataaars/svg?seed=editor-2" className="w-6 h-6" />
-            <Avatar src="https://api.dicebear.com/7.x/avataaars/svg?seed=editor-3" className="w-6 h-6" />
+            <Avatar className="w-6 h-6" name="A" />
+            <Avatar className="w-6 h-6" name="B" />
+            <Avatar className="w-6 h-6" name="C" />
           </AvatarGroup>
           <Divider orientation="vertical" className="h-6 bg-default-200" />
           <Button
