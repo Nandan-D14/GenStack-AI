@@ -3,69 +3,65 @@ import OpenAI from "openai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { c1Response, prompt, deckId } = await req.json();
+    const { slides, prompt, deckId } = await req.json();
 
-    if (!c1Response || !prompt || !deckId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!slides || !prompt || !deckId) {
+      return NextResponse.json({ error: "Missing required fields (slides, prompt, deckId)" }, { status: 400 });
     }
 
-    console.log("Editing slides via C1 Artifact API...");
-    const thesysClient = new OpenAI({
-      baseURL: "https://api.thesys.dev/v1/artifact",
-      apiKey: process.env.THESYS_API_KEY,
+    console.log("Editing slides via MiniMax-M3...");
+    const client = new OpenAI({
+      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
+      apiKey: process.env.TOKENROUTER_API_KEY,
     });
 
-    const response = await thesysClient.chat.completions.create({
-      model: "c1/artifact/v-dev",
+    const response = await client.chat.completions.create({
+      model: "MiniMax-M3",
       messages: [
         {
           role: "system",
-          content: "You are a professional presentation designer. Modify the existing slides according to the user's instructions while keeping the styling consistent and keeping unaffected slides intact.",
-        },
-        {
-          role: "assistant",
-          content: c1Response,
+          content: `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
+Apply the edit instruction to the slides and return the COMPLETE updated slides array.
+
+IMPORTANT: You MUST respond with ONLY a valid JSON array. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
+
+Each slide object must have:
+- "title": string (the slide headline)
+- "layout": one of "title", "content", "data", "chart", "comparison", "quote", "closing", "two_column"
+- "bullets": array of strings (key points for this slide)
+- "speakerNotes": string (brief notes for the speaker)
+
+Rules:
+- Keep unaffected slides exactly the same.
+- Only modify slides that the edit instruction targets.
+- You may add, delete, or reorder slides if requested.`,
         },
         {
           role: "user",
-          content: prompt,
+          content: `Here are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`,
         },
       ],
-      metadata: {
-        thesys: JSON.stringify({
-          c1_artifact_type: "slides",
-          id: deckId,
-        }),
-      },
-      stream: true,
     });
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of response) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-              controller.enqueue(encoder.encode(content));
-            }
-          }
-        } catch (err) {
-          console.error("Streaming error during edit:", err);
-          controller.error(err);
-        } finally {
-          controller.close();
-        }
-      },
-    });
+    const rawContent = response.choices[0]?.message?.content || "";
+    console.log("Raw LLM response received, length:", rawContent.length);
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive",
-      },
-    });
+    let updatedSlides: any[];
+    try {
+      let jsonStr = rawContent.trim();
+      if (jsonStr.startsWith("```")) {
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+      updatedSlides = JSON.parse(jsonStr);
+      if (!Array.isArray(updatedSlides)) {
+        throw new Error("Response is not an array");
+      }
+    } catch (err: any) {
+      console.error("JSON parse failed. Raw response was:", rawContent);
+      throw new Error("AI failed to return valid JSON slides. Please try again.");
+    }
+
+    return NextResponse.json({ slides: updatedSlides });
   } catch (error: any) {
     console.error("Error editing slides:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

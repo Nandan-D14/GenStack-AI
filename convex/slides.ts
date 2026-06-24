@@ -149,3 +149,56 @@ export const regenerateSlide = mutation({
     return await ctx.db.get(args.slideId);
   },
 });
+
+// Replace all slides for a deck (used when AI generates or edits all slides)
+export const replaceAllSlides = mutation({
+  args: {
+    deckId: v.id("decks"),
+    slides: v.array(
+      v.object({
+        title: v.string(),
+        layout: v.string(),
+        bullets: v.array(v.string()),
+        speakerNotes: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Delete existing slides
+    const existingSlides = await ctx.db
+      .query("slides")
+      .withIndex("by_deckId", (q) => q.eq("deckId", args.deckId))
+      .collect();
+    for (const slide of existingSlides) {
+      await ctx.db.delete(slide._id);
+    }
+
+    // Insert new slides
+    const now = new Date().toISOString();
+    const insertedIds = [];
+    for (let i = 0; i < args.slides.length; i++) {
+      const slide = args.slides[i];
+      const slideId = await ctx.db.insert("slides", {
+        deckId: args.deckId,
+        order: i,
+        title: slide.title,
+        layout: slide.layout,
+        content: JSON.stringify(slide.bullets),
+        visualSuggestion: "none",
+        speakerNotes: slide.speakerNotes || "",
+        isLocked: false,
+        isGenerated: true,
+        updatedAt: now,
+      });
+      insertedIds.push(slideId);
+    }
+
+    // Update deck's updatedAt and status
+    await ctx.db.patch(args.deckId, {
+      updatedAt: now,
+    });
+
+    return insertedIds;
+  },
+});
+

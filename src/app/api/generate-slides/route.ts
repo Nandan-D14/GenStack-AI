@@ -9,25 +9,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing prompt or deckId" }, { status: 400 });
     }
 
-    console.log("1. Generating outline via TokenRouter's MiniMax-M3...");
-    const tokenRouterClient = new OpenAI({
+    console.log("Generating slides JSON via MiniMax-M3...");
+    const client = new OpenAI({
       baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
       apiKey: process.env.TOKENROUTER_API_KEY,
     });
 
-    const minimaxResponse = await tokenRouterClient.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: "MiniMax-M3",
       messages: [
         {
           role: "system",
-          content: `You are an expert presentation structure generator.
-Generate a structured, slide-by-slide text presentation based on the user's request.
-For each slide, specify:
-1. Slide Title
-2. Suggested Layout (e.g. title, content, data, chart, comparison, quote, closing)
-3. Bullet points and key content details.
+          content: `You are an expert presentation designer. Generate a structured presentation based on the user's request.
+Return the output as a strict JSON array of slide objects.
 
-Make the presentation detailed, professional, and well-organized so that the slide visualizer can build beautiful slides.`,
+IMPORTANT: You MUST respond with ONLY a valid JSON array. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
+
+Each slide object must have:
+- "title": string (the slide headline)
+- "layout": one of "title", "content", "data", "chart", "comparison", "quote", "closing", "two_column"
+- "bullets": array of strings (key points for this slide)
+- "speakerNotes": string (brief notes for the speaker)
+
+Generate between 6 and 10 slides. The first slide must be "title" layout. The last slide must be "closing" layout.`,
         },
         {
           role: "user",
@@ -36,63 +40,25 @@ Make the presentation detailed, professional, and well-organized so that the sli
       ],
     });
 
-    const minimaxContent = minimaxResponse.choices[0]?.message?.content || "";
-    console.log("TokenRouter outline generation complete.");
+    const rawContent = response.choices[0]?.message?.content || "";
+    console.log("Raw LLM response received, length:", rawContent.length);
 
-    console.log("2. Visualizing slides via Thesys C1 Artifact API...");
-    const thesysClient = new OpenAI({
-      baseURL: "https://api.thesys.dev/v1/artifact",
-      apiKey: process.env.THESYS_API_KEY,
-    });
+    let slidesJson: any[];
+    try {
+      let jsonStr = rawContent.trim();
+      if (jsonStr.startsWith("```")) {
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+      slidesJson = JSON.parse(jsonStr);
+      if (!Array.isArray(slidesJson)) {
+        throw new Error("Response is not an array");
+      }
+    } catch (err: any) {
+      console.error("JSON parse failed. Raw response was:", rawContent);
+      throw new Error("AI failed to return valid JSON slides. Please try again.");
+    }
 
-    const response = await thesysClient.chat.completions.create({
-      model: "c1/artifact/v-dev",
-      messages: [
-        {
-          role: "system",
-          content: "You are a professional presentation designer. Convert the provided structured presentation content into a beautiful slide deck using appropriate C1 slide templates.",
-        },
-        {
-          role: "user",
-          content: minimaxContent,
-        },
-      ],
-      metadata: {
-        thesys: JSON.stringify({
-          c1_artifact_type: "slides",
-          id: deckId,
-        }),
-      },
-      stream: true,
-    });
-
-    // Create a ReadableStream to stream the response chunks back to the client
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of response) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-              controller.enqueue(encoder.encode(content));
-            }
-          }
-        } catch (err) {
-          console.error("Streaming error:", err);
-          controller.error(err);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive",
-      },
-    });
+    return NextResponse.json({ slides: slidesJson });
   } catch (error: any) {
     console.error("Error generating slides:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

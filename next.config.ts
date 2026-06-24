@@ -16,7 +16,11 @@ const nextConfig: NextConfig = {
     "@react-aria/calendar",
     "@react-aria/checkbox",
     "@react-aria/combobox",
-    "react-aria"
+    "react-aria",
+    "@thesysai/genui-sdk",
+    "@crayonai/react-ui",
+    "@crayonai/react-core",
+    "@crayonai/stream"
   ],
   webpack: (config) => {
     config.resolve.modules = [

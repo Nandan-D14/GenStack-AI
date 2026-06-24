@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { HeroUIProvider } from "@heroui/react";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import "@crayonai/react-ui/styles/index.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
