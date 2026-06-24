@@ -36,6 +36,10 @@ import {
   Eye,
   CheckCircle,
   HelpCircle,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  GripVertical
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -97,6 +101,61 @@ export default function EditorPage() {
       setSelectedSlideIndex(slides.length - 1);
     }
   }, [slides, selectedSlideIndex]);
+
+  // Canvas View State
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  
+  // Drag and drop state
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).id === "canvas-bg") {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setIsPanning(true);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isPanning) {
+      setPan(p => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsPanning(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch(err) {}
+  };
+
+  const handleZoomIn = () => setZoom(z => Math.min(3, z + 0.1));
+  const handleZoomOut = () => setZoom(z => Math.max(0.1, z - 0.1));
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleSlideDrop = async (dropIdx: number) => {
+    if (draggedSlideIndex === null || draggedSlideIndex === dropIdx) return;
+    const newSlides = [...slides];
+    const [removed] = newSlides.splice(draggedSlideIndex, 1);
+    newSlides.splice(dropIdx, 0, removed);
+    
+    // Optimistically update if you want, but Convex will push updates
+    const updates = newSlides.map((s, idx) => ({ id: s._id, order: idx }));
+    await runUpdateSlideOrders({ slides: updates });
+    if (selectedSlideIndex === draggedSlideIndex) {
+      setSelectedSlideIndex(dropIdx);
+    } else if (selectedSlideIndex > draggedSlideIndex && selectedSlideIndex <= dropIdx) {
+      setSelectedSlideIndex(selectedSlideIndex - 1);
+    } else if (selectedSlideIndex < draggedSlideIndex && selectedSlideIndex >= dropIdx) {
+      setSelectedSlideIndex(selectedSlideIndex + 1);
+    }
+    setDraggedSlideIndex(null);
+  };
+
 
   // ─────────────────────────────────────────────
   // BACKWARD COMPATIBILITY: Migrate c1Response to slides table
@@ -957,28 +1016,28 @@ export default function EditorPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#0F1011] text-foreground font-sans">
+    <div className="h-screen flex flex-col bg-[#09090b] text-zinc-100 font-sans">
       {/* ─────────────────────────────────────────────
-          HEADER (SpaceX screenshot style)
+          HEADER (Clean SaaS Dark)
           ───────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-white/[0.06] bg-[#0A0B0C] shrink-0">
+      <div className="flex items-center justify-between px-6 h-14 bg-transparent shrink-0 z-10">
         <div className="flex items-center gap-3">
           <Button
             isIconOnly
             variant="light"
             size="sm"
-            className="text-white hover:bg-white/10 rounded-lg"
+            className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
             onPress={() => router.push("/dashboard")}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </Button>
-          <span className="text-white text-sm font-semibold tracking-wide truncate max-w-md">
+          <span className="text-zinc-100 text-[14px] font-medium tracking-wide truncate max-w-md ml-2">
             {deck?.title || "Loading presentation..."}
           </span>
           {isGenerating && (
-            <div className="flex items-center gap-2 ml-2 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-              <Loader2 className="w-3 h-3 text-[#7170FF] animate-spin" />
-              <span className="text-[10px] text-[#7170FF] font-medium">
+            <div className="flex items-center gap-2 ml-4 bg-zinc-800 px-3 py-1 rounded-md">
+              <Loader2 className="w-3.5 h-3.5 text-zinc-400 animate-spin" />
+              <span className="text-[11px] text-zinc-400 font-medium tracking-wide">
                 {generateStatus}
               </span>
             </div>
@@ -987,26 +1046,26 @@ export default function EditorPage() {
 
         <div className="flex items-center gap-2">
           {/* Present fullscreen button */}
-          <Tooltip content="PresentFullscreen" delay={500}>
+          <Tooltip content="Present Fullscreen" delay={500} classNames={{ base: "text-[11px] font-medium" }}>
             <Button
               isIconOnly
-              variant="bordered"
+              variant="flat"
               size="sm"
-              className="border-white/[0.08] text-white hover:bg-white/5 rounded-lg w-8 h-8 min-w-0"
+              className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 rounded-md w-8 h-8 min-w-0 transition-colors"
               onPress={() => setIsFullscreen(true)}
               disabled={slides.length === 0}
             >
-              <Play className="w-4 h-4" />
+              <Play className="w-4 h-4 ml-0.5" />
             </Button>
           </Tooltip>
 
           {/* Export PPTX button */}
-          <Tooltip content="Export Editable PPTX" delay={500}>
+          <Tooltip content="Export Editable PPTX" delay={500} classNames={{ base: "text-[11px] font-medium" }}>
             <Button
               isIconOnly
-              variant="bordered"
+              variant="flat"
               size="sm"
-              className="border-white/[0.08] text-white hover:bg-white/5 rounded-lg w-8 h-8 min-w-0"
+              className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 rounded-md w-8 h-8 min-w-0 transition-colors ml-1"
               onPress={handlePptxExport}
               isLoading={isExporting}
               disabled={slides.length === 0}
@@ -1022,53 +1081,70 @@ export default function EditorPage() {
           ───────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT SIDEBAR: Slide thumbnails */}
-        <div className="w-56 bg-[#0A0B0C] border-r border-white/[0.06] flex flex-col shrink-0 select-none">
-          <div className="p-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
-            <span className="text-xs font-semibold text-white/50 tracking-wider uppercase">
-              Slides
-            </span>
-            <Button
-              size="sm"
-              variant="flat"
-              className="bg-white/5 text-white hover:bg-white/10 h-7 px-2 font-medium text-xs min-w-0"
-              startContent={<Plus className="w-3.5 h-3.5" />}
-              onPress={handleAddSlide}
-            >
-              Add
-            </Button>
-          </div>
+        <div className="w-[260px] bg-transparent flex flex-col shrink-0 select-none pl-4 pb-4 pt-2">
+          <div className="flex-1 flex flex-col bg-[#121214] border border-zinc-800/80 rounded-2xl overflow-hidden shadow-lg">
+            <div className="px-5 py-3 flex items-center justify-between shrink-0 bg-[#121214] z-10">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                Slides
+              </span>
+              <Button
+                size="sm"
+                variant="flat"
+                className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 h-7 px-3 font-medium text-[11px] min-w-0 rounded-md transition-colors"
+                startContent={<Plus className="w-3.5 h-3.5" />}
+                onPress={handleAddSlide}
+              >
+                Add
+              </Button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-none">
+            <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 scrollbar-none">
             {slides.length === 0 ? (
-              <div className="text-center py-8 text-xs text-white/30">
+              <div className="text-center py-8 text-[12px] text-zinc-500">
                 No slides
               </div>
             ) : (
               slides.map((slide, idx) => {
                 const isSelected = idx === selectedSlideIndex;
+                const isDragging = idx === draggedSlideIndex;
                 return (
                   <div
                     key={slide._id}
-                    className="flex flex-col items-center group"
+                    className={`flex flex-col items-center group ${isDragging ? 'opacity-50 scale-95' : ''} transition-all`}
+                    draggable
+                    onDragStart={() => setDraggedSlideIndex(idx)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleSlideDrop(idx);
+                    }}
                   >
-                    <button
-                      onClick={() => {
-                        setSelectedSlideIndex(idx);
-                        setShowAll(false);
-                      }}
-                      className={`w-full aspect-video rounded-lg overflow-hidden transition-all duration-200 border-2 text-left relative ${
-                        isSelected
-                          ? "border-[#7170FF] shadow-lg shadow-[#7170FF]/15 scale-[1.02]"
-                          : "border-white/[0.08] hover:border-white/20"
-                      }`}
-                    >
-                      {renderThumbnailPreview(slide)}
-                    </button>
+                    <div className="w-full flex items-center gap-2 relative group/slide">
+                      <div className="cursor-grab active:cursor-grabbing opacity-0 group-hover/slide:opacity-100 transition-opacity absolute -left-2 text-zinc-500 hover:text-zinc-300 z-10 bg-[#121214] rounded shadow-sm py-1">
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedSlideIndex(idx);
+                          setShowAll(false);
+                        }}
+                        className={`w-full aspect-video rounded-xl overflow-hidden transition-all duration-300 border-[2px] text-left relative ${
+                          isSelected
+                            ? "border-zinc-300 shadow-sm scale-[1.02]"
+                            : "border-[#1e1e21] hover:border-zinc-600 opacity-80 hover:opacity-100 bg-[#09090b]"
+                        }`}
+                      >
+                        {renderThumbnailPreview(slide)}
+                      </button>
+                    </div>
                     <span
-                      className={`text-[10px] mt-1.5 font-semibold transition-colors duration-150 ${
+                      className={`text-[16px] mt-3 font-medium transition-colors duration-200 ${
                         isSelected
-                          ? "text-[#7170FF]"
-                          : "text-white/40 group-hover:text-white/60"
+                          ? "text-white"
+                          : "text-zinc-300 group-hover:text-white"
                       }`}
                     >
                       {idx + 1}
@@ -1079,47 +1155,78 @@ export default function EditorPage() {
             )}
           </div>
         </div>
+        </div>
 
         {/* CENTER AREA: Widescreen slide player canvas */}
-        <div className="flex-1 flex flex-col bg-[#0A0B0C] relative overflow-hidden">
-          <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
+        <div className="flex-1 flex flex-col bg-[#09090b] relative overflow-hidden">
+          
+          {/* Zoom Toolbar Overlay */}
+          {slides.length > 0 && !showAll && (
+            <div className="absolute top-6 right-6 z-10 flex items-center bg-zinc-900 border border-zinc-800 rounded-md shadow-sm overflow-hidden p-1 gap-1">
+              <Tooltip content="Zoom Out">
+                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleZoomOut}>
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+              <div className="w-12 text-center text-[12px] font-medium text-zinc-300 select-none">
+                {Math.round(zoom * 100)}%
+              </div>
+              <Tooltip content="Zoom In">
+                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleZoomIn}>
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+              <Divider orientation="vertical" className="h-4 bg-zinc-800 mx-1" />
+              <Tooltip content="Reset Zoom">
+                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleResetZoom}>
+                  <Maximize className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          )}
+
+          <div 
+            id="canvas-bg"
+            className={`flex-1 flex items-center justify-center p-8 overflow-hidden ${isPanning ? 'cursor-grabbing' : slides.length > 0 && !showAll ? 'cursor-grab' : ''}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+          >
             {isGenerating ? (
-              <div className="text-center py-12">
-                <Loader2 className="w-12 h-12 text-[#7170FF] mx-auto mb-4 animate-spin" />
-                <p className="text-lg text-white font-medium">
+              <div className="text-center py-12 pointer-events-none">
+                <Loader2 className="w-8 h-8 text-zinc-400 mx-auto mb-4 animate-spin" />
+                <p className="text-[14px] text-zinc-300 font-medium">
                   Generating with AI...
                 </p>
-                <p className="text-sm text-default-400 mt-1">
+                <p className="text-[12px] text-zinc-500 mt-1">
                   {generateStatus}
                 </p>
               </div>
             ) : slides.length === 0 ? (
-              <div className="text-center py-12 bg-[#121314] rounded-2xl border border-white/[0.08] shadow-2xl p-8 max-w-md w-full">
-                <Sparkles className="w-12 h-12 text-[#7170FF] mx-auto mb-4 animate-pulse" />
-                <p className="text-lg text-white font-semibold">
+              <div className="text-center py-12 bg-[#18181b] rounded-xl border border-zinc-800 shadow-sm p-10 max-w-md w-full pointer-events-none">
+                <p className="text-[16px] text-zinc-100 font-medium tracking-tight mb-2">
                   Start building slides
                 </p>
-                <p className="text-sm text-default-400 mt-2">
-                  Let AI draft your deck in seconds, or add individual slides
-                  manually.
+                <p className="text-[13px] text-zinc-400 leading-relaxed mb-6">
+                  Let AI draft your deck in seconds, or start from scratch and add slides manually.
                 </p>
-                <div className="flex flex-col gap-2 mt-6">
+                <div className="flex flex-col gap-3 mt-4 pointer-events-auto">
                   <Button
-                    color="primary"
                     size="md"
-                    className="bg-[#7170FF] text-white font-semibold w-full"
+                    className="bg-white text-black hover:bg-zinc-200 font-medium w-full rounded-md h-10 transition-colors"
                     startContent={<Sparkles className="w-4 h-4" />}
                     onPress={() =>
                       deck?.title && triggerAiGeneration(deck.title)
                     }
                     isLoading={isGenerating}
                   >
-                    Generate with AI
+                    Generate with AI Copilot
                   </Button>
                   <Button
                     variant="bordered"
                     size="md"
-                    className="border-white/10 text-white w-full hover:bg-white/5"
+                    className="border-zinc-800 text-zinc-300 w-full hover:bg-zinc-800 hover:text-zinc-100 rounded-md h-10 font-medium transition-colors"
                     startContent={<Plus className="w-4 h-4" />}
                     onPress={handleAddSlide}
                   >
@@ -1129,7 +1236,7 @@ export default function EditorPage() {
               </div>
             ) : showAll ? (
               /* GRID VIEW OF ALL SLIDES */
-              <div className="w-full h-full max-w-5xl overflow-y-auto p-4 scrollbar-none">
+              <div className="w-full h-full max-w-5xl overflow-y-auto p-4 scrollbar-none pointer-events-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                   {slides.map((slide, idx) => (
                     <div key={slide._id} className="flex flex-col items-center">
@@ -1138,15 +1245,15 @@ export default function EditorPage() {
                           setSelectedSlideIndex(idx);
                           setShowAll(false);
                         }}
-                        className={`w-full aspect-video rounded-lg overflow-hidden border-2 transition-all hover:scale-[1.02] ${
+                        className={`w-full aspect-video rounded-md overflow-hidden border transition-all hover:scale-[1.02] ${
                           idx === selectedSlideIndex
-                            ? "border-[#7170FF]"
-                            : "border-white/[0.08] hover:border-white/20"
+                            ? "border-blue-500 shadow-sm"
+                            : "border-zinc-800 hover:border-zinc-700"
                         }`}
                       >
                         {renderThumbnailPreview(slide)}
                       </button>
-                      <span className="text-xs text-white/50 mt-2 font-medium">
+                      <span className="text-[11px] text-zinc-500 mt-2 font-medium">
                         Slide {idx + 1}
                       </span>
                     </div>
@@ -1154,8 +1261,14 @@ export default function EditorPage() {
                 </div>
               </div>
             ) : (
-              /* SINGLE SLIDE CANVAS (SpaceX style) */
-              <div className="w-full max-w-4xl aspect-video bg-[#121314] rounded-2xl border border-white/[0.08] shadow-2xl relative overflow-hidden flex flex-col justify-center">
+              /* SINGLE SLIDE CANVAS */
+              <div 
+                className="w-full max-w-[960px] aspect-video bg-[#18181b] rounded-lg border border-zinc-800 shadow-md relative overflow-hidden flex flex-col justify-center pointer-events-auto origin-center transition-transform"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  willChange: 'transform'
+                }}
+              >
                 {renderSlideContent(
                   activeSlide,
                   getActiveBullets(activeSlide),
@@ -1165,15 +1278,15 @@ export default function EditorPage() {
             )}
           </div>
 
-          {/* BOTTOM CONTROLS PILL BAR (SpaceX screenshot style) */}
+          {/* BOTTOM CONTROLS PILL BAR */}
           {slides.length > 0 && !showAll && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#121314]/90 backdrop-blur-md border border-white/[0.08] px-4 py-2 rounded-full flex items-center gap-4 text-white shadow-xl z-20">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#18181b] border border-zinc-800 px-4 py-2 rounded-lg flex items-center gap-4 text-zinc-100 shadow-lg z-20">
               {/* Previous Slide */}
               <Button
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
+                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md h-7 w-7 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === 0}
                 onPress={() => setSelectedSlideIndex((prev) => prev - 1)}
               >
@@ -1181,9 +1294,9 @@ export default function EditorPage() {
               </Button>
 
               {/* Slide Counter */}
-              <span className="text-xs font-semibold text-white/90 select-none">
+              <span className="text-[12px] font-medium text-zinc-100 select-none min-w-[40px] text-center">
                 {selectedSlideIndex + 1}{" "}
-                <span className="text-white/40 font-normal">of</span>{" "}
+                <span className="text-zinc-500 mx-0.5">/</span>{" "}
                 {slides.length}
               </span>
 
@@ -1192,44 +1305,45 @@ export default function EditorPage() {
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
+                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md h-7 w-7 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === slides.length - 1}
                 onPress={() => setSelectedSlideIndex((prev) => prev + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
 
-              <Divider orientation="vertical" className="bg-white/10 h-4" />
+              <Divider orientation="vertical" className="bg-zinc-800 h-4" />
 
               {/* Show All Grid Switch */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider select-none">
-                  Show all
+                <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider select-none">
+                  Grid
                 </span>
                 <Switch
                   size="sm"
-                  color="secondary"
+                  color="default"
                   className="p-0"
+                  classNames={{ wrapper: "group-data-[selected=true]:bg-blue-500" }}
                   isSelected={showAll}
                   onValueChange={setShowAll}
                 />
               </div>
 
-              <Divider orientation="vertical" className="bg-white/10 h-4" />
+              <Divider orientation="vertical" className="bg-zinc-800 h-4" />
 
               {/* Edit Mode Toggle */}
               <Button
                 size="sm"
-                variant={isEditMode ? "solid" : "light"}
-                className={`h-7 px-3 text-xs font-semibold rounded-full min-w-0 ${
+                variant="flat"
+                className={`h-7 px-3 text-[11px] font-medium rounded-md min-w-0 transition-all ${
                   isEditMode
-                    ? "bg-[#7170FF] text-white shadow-md shadow-[#7170FF]/25"
-                    : "text-white hover:bg-white/10"
+                    ? "bg-blue-500 text-white"
+                    : "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                 }`}
                 startContent={<Edit3 className="w-3.5 h-3.5" />}
                 onPress={() => setIsEditMode(!isEditMode)}
               >
-                Edit
+                {isEditMode ? "Editing" : "Edit"}
               </Button>
             </div>
           )}
@@ -1237,26 +1351,26 @@ export default function EditorPage() {
 
         {/* RIGHT SIDEBAR: AI Copilot & Slide Settings */}
         {slides.length > 0 && (
-          <div className="w-80 bg-[#0A0B0C] border-l border-white/[0.06] flex flex-col shrink-0">
+          <div className="w-[320px] bg-[#18181b] border-l border-zinc-800 flex flex-col shrink-0">
             {/* Slide Settings Section */}
-            <div className="p-4 border-b border-white/[0.06] space-y-4 shrink-0">
-              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">
+            <div className="p-5 border-b border-zinc-800 space-y-5 shrink-0">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block">
                 Slide Settings
               </span>
 
               {/* Slide title headline */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Slide Headline
                 </label>
                 <Input
                   size="sm"
                   variant="bordered"
-                  className="text-white"
+                  className="text-zinc-100"
                   classNames={{
                     inputWrapper:
-                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium",
+                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 shadow-sm transition-colors rounded-md h-9",
+                    input: "text-[12px] font-medium placeholder:text-zinc-500",
                   }}
                   value={activeSlide?.title || ""}
                   onChange={(e) => handleUpdateSlideTitle(e.target.value)}
@@ -1265,15 +1379,15 @@ export default function EditorPage() {
 
               {/* Slide layout selector */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Layout Template
                 </label>
-                <Dropdown>
+                <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[200px] rounded-md" }}>
                   <DropdownTrigger>
                     <Button
                       size="sm"
                       variant="bordered"
-                      className="w-full justify-between border-white/10 hover:border-white/20 bg-white/[0.02] text-xs font-medium text-white/80"
+                      className="w-full justify-between border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-[12px] font-medium text-zinc-100 transition-colors rounded-md h-9"
                     >
                       {activeSlide?.layout
                         ? activeSlide.layout.replace("_", " ").toUpperCase()
@@ -1282,71 +1396,36 @@ export default function EditorPage() {
                   </DropdownTrigger>
                   <DropdownMenu
                     aria-label="Slide layouts"
-                    className="bg-[#121314] border border-white/10 text-white"
+                    itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
                     onAction={(key) => handleUpdateSlideLayout(key as string)}
                   >
-                    <DropdownItem
-                      key="title"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Title Slide
-                    </DropdownItem>
-                    <DropdownItem
-                      key="content"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Content List
-                    </DropdownItem>
-                    <DropdownItem
-                      key="two_column"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Two Columns
-                    </DropdownItem>
-                    <DropdownItem
-                      key="data"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Data Metrics
-                    </DropdownItem>
-                    <DropdownItem
-                      key="chart"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Metrics + Chart
-                    </DropdownItem>
-                    <DropdownItem
-                      key="quote"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Quote Slide
-                    </DropdownItem>
-                    <DropdownItem
-                      key="closing"
-                      className="hover:bg-[#1A1B1C] text-white"
-                    >
-                      Closing / CTA
-                    </DropdownItem>
+                    <DropdownItem key="title">Title Slide</DropdownItem>
+                    <DropdownItem key="content">Content List</DropdownItem>
+                    <DropdownItem key="two_column">Two Columns</DropdownItem>
+                    <DropdownItem key="data">Data Metrics</DropdownItem>
+                    <DropdownItem key="chart">Metrics + Chart</DropdownItem>
+                    <DropdownItem key="quote">Quote Slide</DropdownItem>
+                    <DropdownItem key="closing">Closing / CTA</DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </div>
 
               {/* Bullets Points editor */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Slide Bullets
                 </label>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
+                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
                   {getActiveBullets(activeSlide).map((bullet, idx) => (
-                    <div key={idx} className="flex gap-1.5 items-center">
+                    <div key={idx} className="flex gap-2 items-center">
                       <Input
                         size="sm"
                         variant="bordered"
                         className="flex-1"
                         classNames={{
                           inputWrapper:
-                            "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.01] h-7 min-h-0 py-0",
-                          input: "text-[11px]",
+                            "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors min-h-[32px] h-[32px] rounded-md",
+                          input: "text-[12px] text-zinc-100",
                         }}
                         value={bullet}
                         onChange={(e) => {
@@ -1359,15 +1438,13 @@ export default function EditorPage() {
                         isIconOnly
                         size="sm"
                         variant="light"
-                        className="text-white/40 hover:text-danger hover:bg-white/5 h-7 w-7 min-w-0"
+                        className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800 h-8 w-8 min-w-0 transition-colors rounded-md"
                         onPress={() => {
-                          const newBullets = getActiveBullets(
-                            activeSlide,
-                          ).filter((_, i) => i !== idx);
+                          const newBullets = getActiveBullets(activeSlide).filter((_, i) => i !== idx);
                           handleUpdateSlideBullets(newBullets);
                         }}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   ))}
@@ -1375,13 +1452,10 @@ export default function EditorPage() {
                 <Button
                   size="sm"
                   variant="flat"
-                  className="w-full bg-white/5 text-white hover:bg-white/10 h-7 text-xs font-semibold"
-                  startContent={<Plus className="w-3 h-3" />}
+                  className="w-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 h-8 text-[12px] font-medium transition-colors mt-2 rounded-md"
+                  startContent={<Plus className="w-3.5 h-3.5" />}
                   onPress={() => {
-                    const newBullets = [
-                      ...getActiveBullets(activeSlide),
-                      "New key point",
-                    ];
+                    const newBullets = [...getActiveBullets(activeSlide), "New key point"];
                     handleUpdateSlideBullets(newBullets);
                   }}
                 >
@@ -1391,33 +1465,31 @@ export default function EditorPage() {
 
               {/* Speaker notes */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Speaker Notes
                 </label>
                 <Textarea
                   size="sm"
                   variant="bordered"
                   placeholder="Notes visible during presentation..."
-                  minRows={1}
-                  maxRows={3}
+                  minRows={2}
+                  maxRows={4}
                   classNames={{
                     inputWrapper:
-                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium",
+                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
+                    input: "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
                   }}
                   value={activeSlide?.speakerNotes || ""}
-                  onChange={(e) =>
-                    handleUpdateSlideSpeakerNotes(e.target.value)
-                  }
+                  onChange={(e) => handleUpdateSlideSpeakerNotes(e.target.value)}
                 />
               </div>
 
               {/* Manual operations row */}
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-zinc-800/50">
                 <Button
                   size="sm"
                   variant="bordered"
-                  className="border-white/10 text-white hover:bg-white/5 text-xs h-8 font-medium"
+                  className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 text-[12px] h-9 font-medium transition-colors rounded-md"
                   startContent={<Copy className="w-3.5 h-3.5" />}
                   onPress={handleDuplicateSlide}
                 >
@@ -1426,7 +1498,7 @@ export default function EditorPage() {
                 <Button
                   size="sm"
                   variant="bordered"
-                  className="border-white/10 text-white hover:bg-white/5 text-xs h-8 font-medium text-danger hover:border-danger/30 hover:bg-danger/5"
+                  className="border-zinc-800 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 text-[12px] h-9 font-medium transition-colors hover:border-red-500/30 rounded-md"
                   startContent={<Trash2 className="w-3.5 h-3.5" />}
                   disabled={slides.length <= 1}
                   onPress={handleDeleteSlide}
@@ -1437,14 +1509,14 @@ export default function EditorPage() {
             </div>
 
             {/* AI Copilot Section */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 border-t border-white/[0.06] scrollbar-thin">
-              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-thin">
+              <span className="text-[11px] font-semibold text-zinc-500 tracking-wider uppercase block">
                 AI Copilot
               </span>
 
               {/* Ask AI to edit */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Ask AI to edit
                 </label>
                 <Textarea
@@ -1457,8 +1529,8 @@ export default function EditorPage() {
                   disabled={isAiEditing}
                   classNames={{
                     inputWrapper:
-                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium",
+                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
+                    input: "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1469,35 +1541,35 @@ export default function EditorPage() {
                 />
                 <Button
                   size="sm"
-                  className="w-full bg-[#7170FF] text-white font-semibold text-xs h-8"
+                  className="w-full bg-white text-black hover:bg-zinc-200 font-medium text-[12px] h-9 transition-colors mt-2 rounded-md"
                   startContent={
                     isAiEditing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Send className="w-3.5 h-3.5" />
+                      <Sparkles className="w-4 h-4" />
                     )
                   }
                   onPress={handleAiEditSubmit}
                   isLoading={isAiEditing}
                   disabled={!aiEditPrompt.trim() || isAiEditing}
                 >
-                  {isAiEditing ? "Applying..." : "Apply Edit"}
+                  {isAiEditing ? "Applying Edit..." : "Apply Edit"}
                 </Button>
               </div>
 
-              <Divider className="bg-white/5" />
+              <Divider className="bg-zinc-800/50" />
 
               {/* Quick AI actions */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+              <div className="space-y-3">
+                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
                   AI Shortcuts
                 </label>
 
                 <Button
                   size="sm"
-                  variant="bordered"
-                  className="w-full border-[#7170FF]/20 text-[#7170FF] hover:bg-[#7170FF]/5 font-semibold text-xs h-8 justify-start"
-                  startContent={<Sparkles className="w-3.5 h-3.5" />}
+                  variant="flat"
+                  className="w-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 font-medium text-[12px] h-9 justify-start transition-colors rounded-md"
+                  startContent={<Wand2 className="w-4 h-4" />}
                   onPress={handleRegenerate}
                   isLoading={regenerating}
                 >
@@ -1505,77 +1577,47 @@ export default function EditorPage() {
                 </Button>
 
                 <div className="flex gap-2">
-                  <Dropdown>
+                  <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md" }}>
                     <DropdownTrigger>
                       <Button
                         size="sm"
                         variant="bordered"
-                        className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start"
-                        startContent={<Wand2 className="w-3.5 h-3.5" />}
+                        className="flex-1 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 text-[12px] h-9 justify-start transition-colors rounded-md"
+                        startContent={<Type className="w-4 h-4" />}
                       >
                         Change Tone
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu
                       aria-label="Change tone actions"
-                      className="bg-[#121314] border border-white/10 text-white"
+                      itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
                       onAction={(key) => handleToneChange(key as string)}
                     >
-                      <DropdownItem
-                        key="formal"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Formal
-                      </DropdownItem>
-                      <DropdownItem
-                        key="persuasive"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Persuasive
-                      </DropdownItem>
-                      <DropdownItem
-                        key="casual"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Casual
-                      </DropdownItem>
-                      <DropdownItem
-                        key="technical"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Technical
-                      </DropdownItem>
+                      <DropdownItem key="formal">Formal</DropdownItem>
+                      <DropdownItem key="persuasive">Persuasive</DropdownItem>
+                      <DropdownItem key="casual">Casual</DropdownItem>
+                      <DropdownItem key="technical">Technical</DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
 
-                  <Dropdown>
+                  <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md" }}>
                     <DropdownTrigger>
                       <Button
                         size="sm"
                         variant="bordered"
-                        className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start"
-                        startContent={<Type className="w-3.5 h-3.5" />}
+                        className="flex-1 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 text-[12px] h-9 justify-start transition-colors rounded-md"
+                        startContent={<LayoutGrid className="w-4 h-4" />}
                       >
                         Length
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu
                       aria-label="Expand or shorten actions"
-                      className="bg-[#121314] border border-white/10 text-white"
+                      itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
                       onAction={(key) => handleLengthChange(key as string)}
                     >
-                      <DropdownItem
-                        key="expand"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Expand
-                      </DropdownItem>
-                      <DropdownItem
-                        key="shorten"
-                        className="hover:bg-[#1A1B1C] text-white"
-                      >
-                        Shorten
-                      </DropdownItem>
+                      <DropdownItem key="expand">Expand</DropdownItem>
+                      <DropdownItem key="shorten">Shorten</DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
                 </div>

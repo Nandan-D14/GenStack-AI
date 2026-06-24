@@ -14,6 +14,10 @@ import {
   ModalFooter,
   Button,
   Input,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
 } from "@heroui/react";
 
 export default function NewDeckPage() {
@@ -226,36 +230,50 @@ export default function NewDeckPage() {
                       
                       <div className="w-[1px] h-6 bg-[#FFFFFF1A] mx-1"></div>
                       
-                      {/* Tone Dropdown disguised as button */}
-                      <div className="relative group/tone flex items-center h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-3 hover:bg-[#FFFFFF1A] transition-colors cursor-pointer">
-                         <span className="material-symbols-outlined text-[16px] text-[#A1A5AE] mr-1.5">palette</span>
-                         <select
-                           value={tone}
-                           onChange={(e) => setTone(e.target.value)}
-                           className="appearance-none bg-transparent border-none text-[13px] font-medium text-[#A1A5AE] outline-none cursor-pointer pr-4 [&>option]:bg-[#0F1011]"
-                         >
-                           <option value="Professional">Professional</option>
-                           <option value="Creative">Creative</option>
-                           <option value="Persuasive">Persuasive</option>
-                         </select>
-                         <span className="material-symbols-outlined absolute right-2 text-[16px] text-[#A1A5AE] pointer-events-none">arrow_drop_down</span>
-                      </div>
-
-                      {/* Audience */}
-                      <div className="relative flex items-center h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-3 hover:bg-[#FFFFFF1A] transition-colors cursor-pointer">
-                        <span className="material-symbols-outlined text-[16px] text-[#A1A5AE] mr-1.5">groups</span>
-                        <select
-                          value={audience}
-                          onChange={(e) => setAudience(e.target.value)}
-                          className="appearance-none bg-transparent border-none text-[13px] font-medium text-[#A1A5AE] outline-none cursor-pointer pr-4 [&>option]:bg-[#0F1011]"
+                      {/* Tone Dropdown */}
+                      <Dropdown classNames={{ content: "bg-[#0F1011] border border-[#FFFFFF1A] min-w-[150px]" }}>
+                        <DropdownTrigger>
+                          <div className="relative group/tone flex items-center h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-3 hover:bg-[#FFFFFF1A] transition-colors cursor-pointer">
+                             <span className="material-symbols-outlined text-[16px] text-[#A1A5AE] mr-1.5">palette</span>
+                             <span className="text-[13px] font-medium text-[#A1A5AE] pr-4">{tone}</span>
+                             <span className="material-symbols-outlined absolute right-2 text-[16px] text-[#A1A5AE] pointer-events-none">arrow_drop_down</span>
+                          </div>
+                        </DropdownTrigger>
+                        <DropdownMenu 
+                          aria-label="Tone selection"
+                          onAction={(key) => setTone(key as string)}
+                          itemClasses={{
+                            base: "text-[#A1A5AE] hover:text-[#F7F8F8] hover:bg-[#FFFFFF0A] data-[hover=true]:bg-[#FFFFFF0A] data-[hover=true]:text-[#F7F8F8]",
+                          }}
                         >
-                          <option value="Executive Board">Exec Board</option>
-                          <option value="General Public">General</option>
-                          <option value="Technical Team">Technical</option>
-                          <option value="Investors">Investors</option>
-                        </select>
-                        <span className="material-symbols-outlined absolute right-2 text-[16px] text-[#A1A5AE] pointer-events-none">arrow_drop_down</span>
-                      </div>
+                          <DropdownItem key="Professional">Professional</DropdownItem>
+                          <DropdownItem key="Creative">Creative</DropdownItem>
+                          <DropdownItem key="Persuasive">Persuasive</DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
+
+                      {/* Audience Dropdown */}
+                      <Dropdown classNames={{ content: "bg-[#0F1011] border border-[#FFFFFF1A] min-w-[150px]" }}>
+                        <DropdownTrigger>
+                          <div className="relative flex items-center h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-3 hover:bg-[#FFFFFF1A] transition-colors cursor-pointer">
+                            <span className="material-symbols-outlined text-[16px] text-[#A1A5AE] mr-1.5">groups</span>
+                            <span className="text-[13px] font-medium text-[#A1A5AE] pr-4 whitespace-nowrap">{audience}</span>
+                            <span className="material-symbols-outlined absolute right-2 text-[16px] text-[#A1A5AE] pointer-events-none">arrow_drop_down</span>
+                          </div>
+                        </DropdownTrigger>
+                        <DropdownMenu 
+                          aria-label="Audience selection"
+                          onAction={(key) => setAudience(key as string)}
+                          itemClasses={{
+                            base: "text-[#A1A5AE] hover:text-[#F7F8F8] hover:bg-[#FFFFFF0A] data-[hover=true]:bg-[#FFFFFF0A] data-[hover=true]:text-[#F7F8F8]",
+                          }}
+                        >
+                          <DropdownItem key="Executive Board">Exec Board</DropdownItem>
+                          <DropdownItem key="General Public">General</DropdownItem>
+                          <DropdownItem key="Technical Team">Technical</DropdownItem>
+                          <DropdownItem key="Investors">Investors</DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
 
                       {/* Slides Slider inside popover or inline */}
                       <div className="hidden sm:flex items-center gap-2 h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-4">
