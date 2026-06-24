@@ -8,6 +8,7 @@ export const createSlide = mutation({
     title: v.string(),
     layout: v.string(),
     order: v.float64(),
+    c1Dsl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const deck = await ctx.db.get(args.deckId);
@@ -22,6 +23,7 @@ export const createSlide = mutation({
       layout: args.layout,
       order: args.order,
       content: JSON.stringify([]),
+      c1Dsl: args.c1Dsl,
       visualSuggestion: "none",
       speakerNotes: "",
       isLocked: false,
@@ -38,6 +40,7 @@ export const updateSlideContent = mutation({
     title: v.optional(v.string()),
     layout: v.optional(v.string()),
     content: v.optional(v.string()), // JSON string
+    c1Dsl: v.optional(v.string()),
     visualSuggestion: v.optional(v.string()),
     speakerNotes: v.optional(v.string()),
     isLocked: v.optional(v.boolean()),
@@ -91,6 +94,7 @@ export const duplicateSlide = mutation({
       title: `${slide.title} (Copy)`,
       layout: slide.layout,
       content: slide.content,
+      c1Dsl: slide.c1Dsl,
       visualSuggestion: slide.visualSuggestion,
       speakerNotes: slide.speakerNotes,
       isLocked: false,
@@ -107,7 +111,7 @@ export const updateSlideOrders = mutation({
       v.object({
         id: v.id("slides"),
         order: v.float64(),
-      })
+      }),
     ),
   },
   handler: async (ctx, args) => {
@@ -140,7 +144,7 @@ export const regenerateSlide = mutation({
       content: JSON.stringify([
         "Regenerated point one (updated by AI)",
         "Regenerated point two (updated by AI)",
-        "Regenerated point three (updated by AI)"
+        "Regenerated point three (updated by AI)",
       ]),
       speakerNotes: `Updated notes for ${slide.title}`,
       updatedAt: now,
@@ -160,7 +164,8 @@ export const replaceAllSlides = mutation({
         layout: v.string(),
         bullets: v.array(v.string()),
         speakerNotes: v.optional(v.string()),
-      })
+        c1Dsl: v.optional(v.string()),
+      }),
     ),
   },
   handler: async (ctx, args) => {
@@ -184,6 +189,7 @@ export const replaceAllSlides = mutation({
         title: slide.title,
         layout: slide.layout,
         content: JSON.stringify(slide.bullets),
+        c1Dsl: slide.c1Dsl,
         visualSuggestion: "none",
         speakerNotes: slide.speakerNotes || "",
         isLocked: false,
@@ -201,4 +207,3 @@ export const replaceAllSlides = mutation({
     return insertedIds;
   },
 });
-

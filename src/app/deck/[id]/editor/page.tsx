@@ -39,8 +39,9 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
-  GripVertical
+  GripVertical,
 } from "lucide-react";
+import { C1Component } from "@thesysai/genui-sdk";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
@@ -75,6 +76,7 @@ export default function EditorPage() {
   const [canvasChatInput, setCanvasChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const canvasChatEndRef = useRef<HTMLDivElement>(null);
+  const canvasChatInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Export states
   const [isExporting, setIsExporting] = useState(false);
@@ -106,9 +108,11 @@ export default function EditorPage() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  
+
   // Drag and drop state
-  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(
+    null,
+  );
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).id === "canvas-bg") {
@@ -119,7 +123,7 @@ export default function EditorPage() {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (isPanning) {
-      setPan(p => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
+      setPan((p) => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
     }
   };
 
@@ -127,11 +131,11 @@ export default function EditorPage() {
     setIsPanning(false);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch(err) {}
+    } catch (err) {}
   };
 
-  const handleZoomIn = () => setZoom(z => Math.min(3, z + 0.1));
-  const handleZoomOut = () => setZoom(z => Math.max(0.1, z - 0.1));
+  const handleZoomIn = () => setZoom((z) => Math.min(3, z + 0.1));
+  const handleZoomOut = () => setZoom((z) => Math.max(0.1, z - 0.1));
   const handleResetZoom = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -142,20 +146,25 @@ export default function EditorPage() {
     const newSlides = [...slides];
     const [removed] = newSlides.splice(draggedSlideIndex, 1);
     newSlides.splice(dropIdx, 0, removed);
-    
+
     // Optimistically update if you want, but Convex will push updates
     const updates = newSlides.map((s, idx) => ({ id: s._id, order: idx }));
     await runUpdateSlideOrders({ slides: updates });
     if (selectedSlideIndex === draggedSlideIndex) {
       setSelectedSlideIndex(dropIdx);
-    } else if (selectedSlideIndex > draggedSlideIndex && selectedSlideIndex <= dropIdx) {
+    } else if (
+      selectedSlideIndex > draggedSlideIndex &&
+      selectedSlideIndex <= dropIdx
+    ) {
       setSelectedSlideIndex(selectedSlideIndex - 1);
-    } else if (selectedSlideIndex < draggedSlideIndex && selectedSlideIndex >= dropIdx) {
+    } else if (
+      selectedSlideIndex < draggedSlideIndex &&
+      selectedSlideIndex >= dropIdx
+    ) {
       setSelectedSlideIndex(selectedSlideIndex + 1);
     }
     setDraggedSlideIndex(null);
   };
-
 
   // ─────────────────────────────────────────────
   // BACKWARD COMPATIBILITY: Migrate c1Response to slides table
@@ -530,6 +539,7 @@ export default function EditorPage() {
                 title: activeSlide.title,
                 layout: activeSlide.layout,
                 content: activeSlide.content,
+                speakerNotes: activeSlide.speakerNotes || "",
               }
             : null,
           allSlides: slides.map((s: any) => ({
@@ -575,6 +585,13 @@ export default function EditorPage() {
     }
   };
 
+  const handleSuggestedPrompt = (promptText: string) => {
+    setCanvasChatInput(promptText);
+    setTimeout(() => {
+      canvasChatInputRef.current?.focus();
+    }, 50);
+  };
+
   // Helper to parse slide bullets safely
   const getActiveBullets = (slide: any): string[] => {
     if (!slide) return [];
@@ -586,10 +603,38 @@ export default function EditorPage() {
     }
   };
 
+  const renderCanvasSlide = (
+    slide: any,
+    bullets: string[],
+    isInteractive: boolean,
+  ) => {
+    if (slide?.c1Dsl) {
+      return (
+        <div className="w-full h-full bg-[#0F1011] text-white overflow-hidden [&_*]:max-w-full">
+          <C1Component c1Response={slide.c1Dsl} isStreaming={false} />
+        </div>
+      );
+    }
+
+    return renderSlideContent(slide, bullets, isInteractive);
+  };
+
   // ─────────────────────────────────────────────
   // RENDER THUMBNAIL LAYOUT MINI-PREVIEW
   // ─────────────────────────────────────────────
   const renderThumbnailPreview = (slide: any) => {
+    if (slide?.c1Dsl) {
+      return (
+        <div className="w-full h-full bg-[#151617] flex flex-col justify-center items-center p-2 text-center select-none rounded border border-white/[0.04]">
+          <div className="px-2 py-1 rounded-full bg-[#7170FF]/20 border border-[#7170FF]/30 text-[#A9A8FF] text-[10px] font-semibold mb-2">
+            C1
+          </div>
+          <div className="w-4/5 h-1.5 bg-white/30 rounded mb-1" />
+          <div className="w-3/5 h-1 bg-white/15 rounded" />
+        </div>
+      );
+    }
+
     switch (slide.layout) {
       case "title":
         return (
@@ -1046,7 +1091,11 @@ export default function EditorPage() {
 
         <div className="flex items-center gap-2">
           {/* Present fullscreen button */}
-          <Tooltip content="Present Fullscreen" delay={500} classNames={{ base: "text-[11px] font-medium" }}>
+          <Tooltip
+            content="Present Fullscreen"
+            delay={500}
+            classNames={{ base: "text-[11px] font-medium" }}
+          >
             <Button
               isIconOnly
               variant="flat"
@@ -1060,7 +1109,11 @@ export default function EditorPage() {
           </Tooltip>
 
           {/* Export PPTX button */}
-          <Tooltip content="Export Editable PPTX" delay={500} classNames={{ base: "text-[11px] font-medium" }}>
+          <Tooltip
+            content="Export Editable PPTX"
+            delay={500}
+            classNames={{ base: "text-[11px] font-medium" }}
+          >
             <Button
               isIconOnly
               variant="flat"
@@ -1099,72 +1152,77 @@ export default function EditorPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 scrollbar-none">
-            {slides.length === 0 ? (
-              <div className="text-center py-8 text-[12px] text-zinc-500">
-                No slides
-              </div>
-            ) : (
-              slides.map((slide, idx) => {
-                const isSelected = idx === selectedSlideIndex;
-                const isDragging = idx === draggedSlideIndex;
-                return (
-                  <div
-                    key={slide._id}
-                    className={`flex flex-col items-center group ${isDragging ? 'opacity-50 scale-95' : ''} transition-all`}
-                    draggable
-                    onDragStart={() => setDraggedSlideIndex(idx)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleSlideDrop(idx);
-                    }}
-                  >
-                    <div className="w-full flex items-center gap-2 relative group/slide">
-                      <div className="cursor-grab active:cursor-grabbing opacity-0 group-hover/slide:opacity-100 transition-opacity absolute -left-2 text-zinc-500 hover:text-zinc-300 z-10 bg-[#121214] rounded shadow-sm py-1">
-                        <GripVertical className="w-4 h-4" />
+              {slides.length === 0 ? (
+                <div className="text-center py-8 text-[12px] text-zinc-500">
+                  No slides
+                </div>
+              ) : (
+                slides.map((slide, idx) => {
+                  const isSelected = idx === selectedSlideIndex;
+                  const isDragging = idx === draggedSlideIndex;
+                  return (
+                    <div
+                      key={slide._id}
+                      className={`flex flex-col items-center group ${isDragging ? "opacity-50 scale-95" : ""} transition-all`}
+                      draggable
+                      onDragStart={() => setDraggedSlideIndex(idx)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleSlideDrop(idx);
+                      }}
+                    >
+                      <div className="w-full flex items-center gap-2 relative group/slide">
+                        <div className="cursor-grab active:cursor-grabbing opacity-0 group-hover/slide:opacity-100 transition-opacity absolute -left-2 text-zinc-500 hover:text-zinc-300 z-10 bg-[#121214] rounded shadow-sm py-1">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedSlideIndex(idx);
+                            setShowAll(false);
+                          }}
+                          className={`w-full aspect-video rounded-xl overflow-hidden transition-all duration-300 border-[2px] text-left relative ${
+                            isSelected
+                              ? "border-zinc-300 shadow-sm scale-[1.02]"
+                              : "border-[#1e1e21] hover:border-zinc-600 opacity-80 hover:opacity-100 bg-[#09090b]"
+                          }`}
+                        >
+                          {renderThumbnailPreview(slide)}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => {
-                          setSelectedSlideIndex(idx);
-                          setShowAll(false);
-                        }}
-                        className={`w-full aspect-video rounded-xl overflow-hidden transition-all duration-300 border-[2px] text-left relative ${
+                      <span
+                        className={`text-[16px] mt-3 font-medium transition-colors duration-200 ${
                           isSelected
-                            ? "border-zinc-300 shadow-sm scale-[1.02]"
-                            : "border-[#1e1e21] hover:border-zinc-600 opacity-80 hover:opacity-100 bg-[#09090b]"
+                            ? "text-white"
+                            : "text-zinc-300 group-hover:text-white"
                         }`}
                       >
-                        {renderThumbnailPreview(slide)}
-                      </button>
+                        {idx + 1}
+                      </span>
                     </div>
-                    <span
-                      className={`text-[16px] mt-3 font-medium transition-colors duration-200 ${
-                        isSelected
-                          ? "text-white"
-                          : "text-zinc-300 group-hover:text-white"
-                      }`}
-                    >
-                      {idx + 1}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
         </div>
 
         {/* CENTER AREA: Widescreen slide player canvas */}
         <div className="flex-1 flex flex-col bg-[#09090b] relative overflow-hidden">
-          
           {/* Zoom Toolbar Overlay */}
           {slides.length > 0 && !showAll && (
             <div className="absolute top-6 right-6 z-10 flex items-center bg-zinc-900 border border-zinc-800 rounded-md shadow-sm overflow-hidden p-1 gap-1">
               <Tooltip content="Zoom Out">
-                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleZoomOut}>
+                <Button
+                  isIconOnly
+                  variant="light"
+                  size="sm"
+                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  onPress={handleZoomOut}
+                >
                   <ZoomOut className="w-4 h-4" />
                 </Button>
               </Tooltip>
@@ -1172,22 +1230,37 @@ export default function EditorPage() {
                 {Math.round(zoom * 100)}%
               </div>
               <Tooltip content="Zoom In">
-                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleZoomIn}>
+                <Button
+                  isIconOnly
+                  variant="light"
+                  size="sm"
+                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  onPress={handleZoomIn}
+                >
                   <ZoomIn className="w-4 h-4" />
                 </Button>
               </Tooltip>
-              <Divider orientation="vertical" className="h-4 bg-zinc-800 mx-1" />
+              <Divider
+                orientation="vertical"
+                className="h-4 bg-zinc-800 mx-1"
+              />
               <Tooltip content="Reset Zoom">
-                <Button isIconOnly variant="light" size="sm" className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md" onPress={handleResetZoom}>
+                <Button
+                  isIconOnly
+                  variant="light"
+                  size="sm"
+                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  onPress={handleResetZoom}
+                >
                   <Maximize className="w-4 h-4" />
                 </Button>
               </Tooltip>
             </div>
           )}
 
-          <div 
+          <div
             id="canvas-bg"
-            className={`flex-1 flex items-center justify-center p-8 overflow-hidden ${isPanning ? 'cursor-grabbing' : slides.length > 0 && !showAll ? 'cursor-grab' : ''}`}
+            className={`flex-1 flex items-center justify-center p-8 overflow-hidden ${isPanning ? "cursor-grabbing" : slides.length > 0 && !showAll ? "cursor-grab" : ""}`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -1209,7 +1282,8 @@ export default function EditorPage() {
                   Start building slides
                 </p>
                 <p className="text-[13px] text-zinc-400 leading-relaxed mb-6">
-                  Let AI draft your deck in seconds, or start from scratch and add slides manually.
+                  Let AI draft your deck in seconds, or start from scratch and
+                  add slides manually.
                 </p>
                 <div className="flex flex-col gap-3 mt-4 pointer-events-auto">
                   <Button
@@ -1262,14 +1336,14 @@ export default function EditorPage() {
               </div>
             ) : (
               /* SINGLE SLIDE CANVAS */
-              <div 
+              <div
                 className="w-full max-w-[960px] aspect-video bg-[#18181b] rounded-lg border border-zinc-800 shadow-md relative overflow-hidden flex flex-col justify-center pointer-events-auto origin-center transition-transform"
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                  willChange: 'transform'
+                  willChange: "transform",
                 }}
               >
-                {renderSlideContent(
+                {renderCanvasSlide(
                   activeSlide,
                   getActiveBullets(activeSlide),
                   true,
@@ -1296,8 +1370,7 @@ export default function EditorPage() {
               {/* Slide Counter */}
               <span className="text-[12px] font-medium text-zinc-100 select-none min-w-[40px] text-center">
                 {selectedSlideIndex + 1}{" "}
-                <span className="text-zinc-500 mx-0.5">/</span>{" "}
-                {slides.length}
+                <span className="text-zinc-500 mx-0.5">/</span> {slides.length}
               </span>
 
               {/* Next Slide */}
@@ -1323,7 +1396,9 @@ export default function EditorPage() {
                   size="sm"
                   color="default"
                   className="p-0"
-                  classNames={{ wrapper: "group-data-[selected=true]:bg-blue-500" }}
+                  classNames={{
+                    wrapper: "group-data-[selected=true]:bg-blue-500",
+                  }}
                   isSelected={showAll}
                   onValueChange={setShowAll}
                 />
@@ -1382,7 +1457,12 @@ export default function EditorPage() {
                 <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
                   Layout Template
                 </label>
-                <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[200px] rounded-md" }}>
+                <Dropdown
+                  classNames={{
+                    content:
+                      "bg-zinc-900 border border-zinc-800 min-w-[200px] rounded-md",
+                  }}
+                >
                   <DropdownTrigger>
                     <Button
                       size="sm"
@@ -1396,7 +1476,9 @@ export default function EditorPage() {
                   </DropdownTrigger>
                   <DropdownMenu
                     aria-label="Slide layouts"
-                    itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
+                    itemClasses={{
+                      base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
+                    }}
                     onAction={(key) => handleUpdateSlideLayout(key as string)}
                   >
                     <DropdownItem key="title">Title Slide</DropdownItem>
@@ -1440,7 +1522,9 @@ export default function EditorPage() {
                         variant="light"
                         className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800 h-8 w-8 min-w-0 transition-colors rounded-md"
                         onPress={() => {
-                          const newBullets = getActiveBullets(activeSlide).filter((_, i) => i !== idx);
+                          const newBullets = getActiveBullets(
+                            activeSlide,
+                          ).filter((_, i) => i !== idx);
                           handleUpdateSlideBullets(newBullets);
                         }}
                       >
@@ -1455,7 +1539,10 @@ export default function EditorPage() {
                   className="w-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 h-8 text-[12px] font-medium transition-colors mt-2 rounded-md"
                   startContent={<Plus className="w-3.5 h-3.5" />}
                   onPress={() => {
-                    const newBullets = [...getActiveBullets(activeSlide), "New key point"];
+                    const newBullets = [
+                      ...getActiveBullets(activeSlide),
+                      "New key point",
+                    ];
                     handleUpdateSlideBullets(newBullets);
                   }}
                 >
@@ -1477,10 +1564,13 @@ export default function EditorPage() {
                   classNames={{
                     inputWrapper:
                       "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
-                    input: "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
+                    input:
+                      "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
                   }}
                   value={activeSlide?.speakerNotes || ""}
-                  onChange={(e) => handleUpdateSlideSpeakerNotes(e.target.value)}
+                  onChange={(e) =>
+                    handleUpdateSlideSpeakerNotes(e.target.value)
+                  }
                 />
               </div>
 
@@ -1530,7 +1620,8 @@ export default function EditorPage() {
                   classNames={{
                     inputWrapper:
                       "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
-                    input: "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
+                    input:
+                      "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1577,7 +1668,12 @@ export default function EditorPage() {
                 </Button>
 
                 <div className="flex gap-2">
-                  <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md" }}>
+                  <Dropdown
+                    classNames={{
+                      content:
+                        "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md",
+                    }}
+                  >
                     <DropdownTrigger>
                       <Button
                         size="sm"
@@ -1590,7 +1686,9 @@ export default function EditorPage() {
                     </DropdownTrigger>
                     <DropdownMenu
                       aria-label="Change tone actions"
-                      itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
+                      itemClasses={{
+                        base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
+                      }}
                       onAction={(key) => handleToneChange(key as string)}
                     >
                       <DropdownItem key="formal">Formal</DropdownItem>
@@ -1600,7 +1698,12 @@ export default function EditorPage() {
                     </DropdownMenu>
                   </Dropdown>
 
-                  <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md" }}>
+                  <Dropdown
+                    classNames={{
+                      content:
+                        "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md",
+                    }}
+                  >
                     <DropdownTrigger>
                       <Button
                         size="sm"
@@ -1613,7 +1716,9 @@ export default function EditorPage() {
                     </DropdownTrigger>
                     <DropdownMenu
                       aria-label="Expand or shorten actions"
-                      itemClasses={{ base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md" }}
+                      itemClasses={{
+                        base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
+                      }}
                       onAction={(key) => handleLengthChange(key as string)}
                     >
                       <DropdownItem key="expand">Expand</DropdownItem>
@@ -1633,7 +1738,7 @@ export default function EditorPage() {
       {isFullscreen && slides.length > 0 && (
         <div className="fixed inset-0 z-50 bg-[#0F1011] flex flex-col justify-center items-center select-none cursor-none">
           <div className="w-[90vw] aspect-video bg-[#121314] rounded-2xl shadow-2xl relative border border-white/10 overflow-hidden flex flex-col justify-center">
-            {renderSlideContent(
+            {renderCanvasSlide(
               slides[selectedSlideIndex],
               getActiveBullets(slides[selectedSlideIndex]),
               false,
@@ -1700,94 +1805,142 @@ export default function EditorPage() {
 
       {/* ── CANVAS CHATBOT ─────────────────────────────── */}
       {/* Floating button */}
-      <button
-        onClick={() => setIsChatOpen((prev) => !prev)}
-        className={`fixed bottom-6 right-6 w-12 h-12 rounded-full flex items-center justify-center shadow-lg z-50 transition-all duration-200 ${
-          isChatOpen
-            ? "bg-surface-container border border-border text-primary"
-            : "bg-primary text-on-primary hover:opacity-90"
-        }`}
-      >
-        <span className="material-symbols-outlined text-[22px]">
-          {isChatOpen ? "close" : "chat"}
-        </span>
-      </button>
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-105 transition-all z-40 border border-zinc-200"
+        >
+          <span className="material-symbols-outlined text-[24px]">
+            chat
+          </span>
+        </button>
+      )}
 
       {/* Chat panel */}
       {isChatOpen && (
-        <div
-          className="fixed bottom-20 right-6 w-80 bg-[#0d0e0f] border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
-          style={{ height: "420px" }}
-        >
+        <div className="fixed top-0 right-0 h-screen w-[45vw] max-w-[600px] min-w-[440px] bg-[#09090b] border-l border-zinc-800 shadow-2xl z-50 flex flex-col transition-transform duration-300">
           {/* Panel header */}
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-surface-container-low/60 flex-shrink-0">
-            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-primary text-[14px]">
-                smart_toy
+          <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60 backdrop-blur-md flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center">
+                <span className="material-symbols-outlined text-zinc-100 text-[18px]">
+                  smart_toy
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-100">
+                  AI Slide Assistant
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  {activeSlide
+                    ? `Editing Slide ${selectedSlideIndex + 1}: ${activeSlide.title.slice(0, 24)}${activeSlide.title.length > 24 ? "..." : ""}`
+                    : "No slide selected"}
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setIsChatOpen(false)}
+              className="w-8 h-8 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 flex items-center justify-center transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                close
               </span>
-            </div>
-            <div className="flex-1">
-              <p className="font-label-md text-label-md text-primary font-semibold">
-                Slide Assistant
-              </p>
-              <p className="font-label-sm text-[10px] text-on-surface-variant">
-                {activeSlide
-                  ? `Slide: ${activeSlide.title.slice(0, 28)}${activeSlide.title.length > 28 ? "..." : ""}`
-                  : "No slide selected"}
-              </p>
-            </div>
+            </button>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {canvasChatMessages.length === 0 && (
-              <div className="text-center text-on-surface-variant py-6">
-                <span className="material-symbols-outlined text-[32px] block mb-2 opacity-30">
-                  forum
-                </span>
-                <p className="font-body-sm text-[12px]">
-                  Ask me to edit, improve,
-                  <br />
-                  or explain the current slide.
-                </p>
+              <div className="flex flex-col justify-center h-full px-4 text-center space-y-6">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-zinc-100 text-[24px]">
+                      auto_awesome
+                    </span>
+                  </div>
+                  <h3 className="text-base font-semibold text-zinc-200">
+                    GenStack Copilot
+                  </h3>
+                  <p className="text-xs text-zinc-400 max-w-sm mx-auto mt-2 leading-relaxed">
+                    Ask me to rewrite content, make speaker notes, format data, change slide layouts, or perform direct slide modifications.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-w-md mx-auto w-full pt-2">
+                  {[
+                    { label: "Shorten content", icon: "vertical_align_center", text: "Make the current slide content much more concise." },
+                    { label: "Improve tone", icon: "workspace_premium", text: "Make the tone of this slide highly professional." },
+                    { label: "Draft speaker notes", icon: "notes", text: "Create detailed speaker notes for this slide." },
+                    { label: "Change title", icon: "edit", text: "Suggest a punchier and more catchy title for this slide." },
+                  ].map((chip) => (
+                    <button
+                      key={chip.label}
+                      onClick={() => handleSuggestedPrompt(chip.text)}
+                      className="p-3 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded-xl text-left transition-all hover:border-zinc-700 flex flex-col space-y-1"
+                    >
+                      <div className="flex items-center gap-1.5 text-zinc-200">
+                        <span className="material-symbols-outlined text-[14px] text-zinc-400">
+                          {chip.icon}
+                        </span>
+                        <span className="text-[11px] font-semibold">{chip.label}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-500 leading-normal">
+                        {chip.text}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+            
             {canvasChatMessages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex gap-1.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="material-symbols-outlined text-primary text-[10px]">
+                  <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span className="material-symbols-outlined text-zinc-100 text-[12px]">
                       auto_awesome
                     </span>
                   </div>
                 )}
                 <div
-                  className={`max-w-[85%] rounded-xl px-3 py-2 text-[12px] leading-relaxed ${
+                  className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
                     msg.role === "user"
-                      ? "bg-primary text-on-primary rounded-tr-sm"
-                      : "bg-surface-container text-on-surface rounded-tl-sm"
+                      ? "bg-white text-black rounded-tr-sm font-medium text-[13px] leading-relaxed shadow-sm"
+                      : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-sm text-[13px] leading-relaxed"
                   }`}
                 >
-                  {msg.content}
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  
+                  {/* Subtle confirmation when slide updates are applied */}
+                  {msg.role === "assistant" && msg.content.toLowerCase().includes("update") && (
+                    <div className="flex items-center gap-1 mt-2 pt-2 border-t border-zinc-850 text-[10px] text-emerald-400 font-medium">
+                      <span className="material-symbols-outlined text-[12px]">
+                        check_circle
+                      </span>
+                      Changes applied directly to active slide
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+            
             {isChatLoading && (
-              <div className="flex gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-primary text-[10px]">
+              <div className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-zinc-100 text-[12px]">
                     auto_awesome
                   </span>
                 </div>
-                <div className="bg-surface-container rounded-xl rounded-tl-sm px-3 py-2">
-                  <div className="flex gap-1">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="flex gap-1 items-center h-4">
                     {[0, 150, 300].map((d) => (
                       <div
                         key={d}
-                        className="w-1 h-1 rounded-full bg-on-surface-variant animate-bounce"
+                        className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce"
                         style={{ animationDelay: `${d}ms` }}
                       />
                     ))}
@@ -1799,25 +1952,29 @@ export default function EditorPage() {
           </div>
 
           {/* Input */}
-          <div className="p-2.5 border-t border-border flex-shrink-0">
-            <div className="flex gap-1.5 bg-surface-container rounded-xl border border-border/40 px-3 py-2">
-              <input
-                type="text"
+          <div className="p-4 border-t border-zinc-800 bg-[#09090b] flex-shrink-0">
+            <div className="flex gap-2 bg-zinc-900 rounded-xl border border-zinc-800 px-3.5 py-2.5">
+              <textarea
+                ref={canvasChatInputRef}
                 value={canvasChatInput}
                 onChange={(e) => setCanvasChatInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCanvasChat();
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleCanvasChat();
+                  }
                 }}
-                placeholder="Make it more concise..."
+                placeholder="Ask AI to edit this slide..."
                 disabled={isChatLoading}
-                className="flex-1 bg-transparent border-none outline-none text-[12px] text-primary placeholder:text-on-surface-variant/50 min-w-0"
+                rows={1}
+                className="flex-1 bg-transparent border-none outline-none text-[13px] text-zinc-100 placeholder:text-zinc-500 resize-none min-h-[24px] max-h-[80px] self-center focus:ring-0"
               />
               <button
                 onClick={handleCanvasChat}
                 disabled={!canvasChatInput.trim() || isChatLoading}
-                className="w-6 h-6 rounded-full bg-primary flex items-center justify-center disabled:opacity-30 flex-shrink-0"
+                className="w-8 h-8 rounded-lg bg-white text-black flex items-center justify-center disabled:opacity-30 flex-shrink-0 hover:bg-zinc-200 transition-colors self-end"
               >
-                <span className="material-symbols-outlined text-on-primary text-[13px]">
+                <span className="material-symbols-outlined text-black text-[16px]">
                   send
                 </span>
               </button>

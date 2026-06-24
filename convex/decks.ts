@@ -323,6 +323,7 @@ export const updatePlan = mutation({
     id: v.id("decks"),
     planItems: v.string(), // JSON string
     planStatus: v.optional(v.string()),
+    generationMode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const deck = await ctx.db.get(args.id);
@@ -332,6 +333,9 @@ export const updatePlan = mutation({
     await ctx.db.patch(args.id, {
       planItems: args.planItems,
       ...(args.planStatus !== undefined ? { planStatus: args.planStatus } : {}),
+      ...(args.generationMode !== undefined
+        ? { generationMode: args.generationMode }
+        : {}),
       updatedAt: new Date().toISOString(),
     });
     return { success: true };

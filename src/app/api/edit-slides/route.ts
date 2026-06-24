@@ -25,6 +25,16 @@ export async function POST(req: NextRequest) {
             content: `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
 Apply the edit instruction to the slides and return the COMPLETE updated slides array.
 
+EXAMPLES OF EDITS:
+1. Tone Change (e.g. "make it professional"):
+   - Rewrite bullets to use formal, strategic business language.
+2. Length Change (e.g. "make it shorter"):
+   - Condense verbose sentences, reduce bullets to 3 key punchy points.
+3. Content Addition (e.g. "add a slide about competitors"):
+   - Add a new slide object with appropriate layout, title, and topic-specific bullets.
+4. Content Deletion (e.g. "delete slide 3"):
+   - Remove the targeted slide from the array.
+
 IMPORTANT: You MUST respond with ONLY a valid JSON array. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
 
 Each slide object must have:
@@ -59,11 +69,10 @@ Rules:
     } catch (apiError: any) {
       console.warn("Upstream LLM API failed (possibly credit exhaustion). Falling back to premium local template modification. Error details:", apiError.message);
       
-      // Local premium fallback simulation to maintain excellent UX
       const instr = prompt.toLowerCase();
-      const newSlides = [...slides];
+      const newSlides = JSON.parse(JSON.stringify(slides));
       
-      if (instr.includes("add") || instr.includes("create") || instr.includes("insert")) {
+      if (instr.includes("add") || instr.includes("create") || instr.includes("insert") || instr.includes("new slide")) {
         let title = "New Slide";
         const titleMatch = prompt.match(/(?:title|called|named|about)\s+["']?([^"'\n\r]+)["']?/i);
         if (titleMatch && titleMatch[1]) {
@@ -77,7 +86,7 @@ Rules:
         newSlides.push({
           title: title,
           layout: "content",
-          bullets: ["New point one", "New point two", "New point three"],
+          bullets: ["Key strategic objective", "Implementation roadmap detail", "Success metrics and verification"],
           speakerNotes: `Details about ${title}.`
         });
         updatedSlides = newSlides;
@@ -96,17 +105,52 @@ Rules:
           }
         }
         updatedSlides = newSlides;
+      } else if (instr.includes("shorter") || instr.includes("condense") || instr.includes("summarize") || instr.includes("brief")) {
+        newSlides.forEach((s: any) => {
+          if (s.bullets && s.bullets.length > 0) {
+            s.bullets = s.bullets.map((b: string) => {
+              const firstSentence = b.split(/[.!?]/)[0];
+              return firstSentence.length > 10 ? firstSentence.trim() : b;
+            }).slice(0, 3);
+          }
+        });
+        updatedSlides = newSlides;
+      } else if (instr.includes("longer") || instr.includes("expand") || instr.includes("elaborate") || instr.includes("more")) {
+        newSlides.forEach((s: any) => {
+          if (s.bullets && s.bullets.length > 0) {
+            s.bullets = s.bullets.map((b: string) => {
+              if (!b.includes("to ensure maximum scalability") && b.length < 50) {
+                return `${b} to ensure maximum scalability and align with operational goals`;
+              }
+              return b;
+            });
+            if (s.bullets.length < 4) {
+              s.bullets.push("Enhanced analytics and reporting capabilities integrated seamlessly");
+            }
+          }
+        });
+        updatedSlides = newSlides;
+      } else if (instr.includes("professional") || instr.includes("formal") || instr.includes("business")) {
+        newSlides.forEach((s: any) => {
+          if (s.bullets && s.bullets.length > 0) {
+            s.bullets = s.bullets.map((b: string) => {
+              return b
+                .replace(/\b(stuff|things)\b/gi, "capabilities")
+                .replace(/\b(good|nice|cool)\b/gi, "optimized")
+                .replace(/\b(fast)\b/gi, "high-performance");
+            });
+          }
+        });
+        updatedSlides = newSlides;
       } else {
-        // Fallback default: modify first content slide to demonstrate update
-        const contentIndex = newSlides.findIndex(s => s.layout !== "title" && s.layout !== "closing");
+        const contentIndex = newSlides.findIndex((s: any) => s.layout !== "title" && s.layout !== "closing");
         const targetIndex = contentIndex >= 0 ? contentIndex : 0;
         if (newSlides[targetIndex]) {
-          const slide = { ...newSlides[targetIndex] };
+          const slide = newSlides[targetIndex];
           slide.bullets = [
-            ...slide.bullets,
-            `Updated: ${prompt}`
+            ...slide.bullets.slice(0, 3),
+            `Key action: ${prompt.length > 60 ? prompt.slice(0, 60) + "..." : prompt}`
           ];
-          newSlides[targetIndex] = slide;
         }
         updatedSlides = newSlides;
       }

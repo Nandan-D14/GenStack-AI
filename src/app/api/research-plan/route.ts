@@ -11,16 +11,22 @@ type PlanItem = {
 
 function generateFallbackPlan(prompt: string, slidesCount: number): PlanItem[] {
   const topic = prompt || "Presentation";
+  const cleanTitle = topic.length > 40 ? topic.slice(0, 40) + "..." : topic;
   const items: PlanItem[] = [
-    { id: "item-0", order: 0, title: topic, layout: "title", description: "Opening title slide introducing the topic" },
-    { id: "item-1", order: 1, title: "The Challenge", layout: "content", description: "Define the core problem or opportunity" },
-    { id: "item-2", order: 2, title: "Our Approach", layout: "content", description: "How we tackle the challenge" },
-    { id: "item-3", order: 3, title: "Key Benefits", layout: "two_column", description: "Primary advantages and value proposition" },
-    { id: "item-4", order: 4, title: "Data & Evidence", layout: "data", description: "Supporting statistics and research" },
-    { id: "item-5", order: 5, title: "Results & Impact", layout: "chart", description: "Measurable outcomes and metrics" },
-    { id: "item-6", order: 6, title: "Next Steps", layout: "closing", description: "Call to action and conclusion" },
+    { id: "item-0", order: 0, title: cleanTitle, layout: "title", description: `Opening title slide introducing the core concepts of ${cleanTitle}` },
+    { id: "item-1", order: 1, title: `The Challenge of ${cleanTitle}`, layout: "content", description: `Identify the main pain points, market challenges, or theoretical problems concerning ${cleanTitle}` },
+    { id: "item-2", order: 2, title: "Key Mechanisms", layout: "two_column", description: `Break down the core components, workflows, or pillars supporting ${cleanTitle}` },
+    { id: "item-3", order: 3, title: `Data & Metrics on ${cleanTitle}`, layout: "data", description: `Examine the statistical evidence, growth trends, and quantitative impact of ${cleanTitle}` },
+    { id: "item-4", order: 4, title: "Comparative Analysis", layout: "comparison", description: `Compare traditional practices with optimized strategies under ${cleanTitle}` },
+    { id: "item-5", order: 5, title: "Performance Trajectory", layout: "chart", description: "Visualize the phase-wise development or historical growth chart" },
+    { id: "item-6", order: 6, title: "Strategic Roadmap", layout: "content", description: `Detail the concrete next steps and implementation phases for ${cleanTitle}` },
+    { id: "item-7", order: 7, title: "Next Steps & Action Plan", layout: "closing", description: "Summarize call-to-actions, opening up for Q&A on this roadmap" },
   ];
-  return items.slice(0, Math.max(3, slidesCount));
+  return items.slice(0, Math.max(3, slidesCount)).map((item, idx) => ({
+    ...item,
+    id: `item-${Date.now()}-${idx}`,
+    order: idx,
+  }));
 }
 
 export async function POST(req: NextRequest) {
@@ -38,20 +44,19 @@ export async function POST(req: NextRequest) {
 
     const isRefinement = chatHistory && chatHistory.length > 0 && currentPlan;
 
-    const systemPrompt = `You are an expert presentation strategist. Your job is to create structured presentation plans.
-
-${isRefinement ? `The user has an existing plan and wants to refine it based on their message.` : `Create a presentation plan for the given topic.`}
+    const systemPrompt = `You are an expert presentation strategist. Your job is to create highly structured, topic-specific presentation plans.
+Do not use generic titles (like "Introduction", "The Problem", "Conclusion"). Every slide title and description MUST be deeply relevant to the requested topic: "${prompt}".
 
 Return ONLY a valid JSON object (no markdown, no explanation) with exactly these fields:
 {
-  "message": "A conversational message to the user explaining what you did (2-3 sentences max)",
+  "message": "A conversational message explaining what you did, referencing the specific topic (2-3 sentences max)",
   "plan": [
     {
       "id": "item-0",
       "order": 0,
-      "title": "Slide title here",
+      "title": "Slide title specific to ${prompt}",
       "layout": "title",
-      "description": "One sentence describing what this slide covers"
+      "description": "One sentence describing specifically what key sub-topic or research point this slide covers"
     }
   ]
 }

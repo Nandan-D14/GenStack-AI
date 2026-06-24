@@ -37,6 +37,7 @@ export default defineSchema({
     c1Response: v.optional(v.string()),
     planItems: v.optional(v.string()), // JSON string of PlanItem[]
     planStatus: v.optional(v.string()), // "planning" | "approved" | "generating" | "done"
+    generationMode: v.optional(v.string()), // "custom" | "template"
     createdAt: v.string(),
     updatedAt: v.string(),
   }).index("by_userId", ["userId"]),
@@ -47,6 +48,7 @@ export default defineSchema({
     layout: v.string(), // "title" | "title_content" | "two_column" | "chart"
     title: v.string(),
     content: v.string(), // JSON string representing slide elements/bullets
+    c1Dsl: v.optional(v.string()), // Thesys C1 single-slide artifact DSL
     visualSuggestion: v.string(), // "chart" | "image" | "icon" | "none"
     speakerNotes: v.optional(v.string()),
     isLocked: v.boolean(),

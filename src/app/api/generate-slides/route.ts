@@ -3,85 +3,80 @@ import OpenAI from "openai";
 
 function generateMockSlides(prompt: string): any[] {
   const topic = prompt || "New Presentation";
+  const cleanTitle = topic.length > 50 ? topic.slice(0, 50) + "..." : topic;
+  
   return [
     {
-      title: topic.slice(0, 50),
+      title: cleanTitle,
       layout: "title",
-      bullets: ["A structured look into our approach", "GenStack AI Platform", "Prepared for you"],
-      speakerNotes: "Welcome everyone and introduce the topic: " + topic
+      bullets: [
+        `Comprehensive overview of ${cleanTitle}`,
+        "Strategic Analysis & Insights",
+        "GenStack AI-Generated Presentation"
+      ],
+      speakerNotes: `Welcome everyone to this presentation on ${cleanTitle}. Today we will explore key dimensions, data points, and strategic implications.`
     },
     {
-      title: "The Problem We Solve",
+      title: `The Core Challenge of ${cleanTitle}`,
       layout: "content",
       bullets: [
-        "Current workflows are highly fragmented and slow",
-        "Inefficient resource allocation leading to high overheads",
-        "Lack of real-time insights and data transparency"
+        `Addressing primary bottlenecks associated with ${cleanTitle}`,
+        "Identifying market inefficiencies and friction points",
+        "Understanding user pain points and operational challenges"
       ],
-      speakerNotes: "Highlight the pain points our audience experiences every day."
+      speakerNotes: "Let's begin by discussing the key challenges and why this topic demands our attention today."
     },
     {
-      title: "Our Solution",
-      layout: "content",
-      bullets: [
-        "Integrated AI automation layers to streamline processing",
-        "Unified dashboard view for cross-functional collaboration",
-        "Predictive resource planning and smart scheduling"
-      ],
-      speakerNotes: "Explain how our solution directly addresses the pain points."
-    },
-    {
-      title: "Market Opportunity",
-      layout: "data",
-      bullets: [
-        "Total Addressable Market: $890B globally by 2028",
-        "Serviceable Market: $150B across target verticals",
-        "CAGR: Growing at 24.5% year-over-year"
-      ],
-      speakerNotes: "Show that there is a massive, rapidly growing market for this solution."
-    },
-    {
-      title: "Core Capabilities",
+      title: `Key Drivers & Trends`,
       layout: "two_column",
       bullets: [
-        "Automated resource routing",
-        "Low-latency execution",
-        "High availability cluster",
-        "Visual design canvas",
-        "One-click PDF/PPTX export",
-        "Collaborative sharing link"
+        "Rapid technological advancements and adoption",
+        "Evolving consumer expectations and demand",
+        "Regulatory shifts and policy incentives",
+        "Increasing focus on efficiency and scalability",
+        "Macroeconomic conditions shaping the landscape",
+        "New market entry and competitive pressures"
       ],
-      speakerNotes: "Detail the key features that set us apart from competitors."
+      speakerNotes: "Here we outline the two main columns of drivers: the internal operational shifts on the left, and external macroeconomic forces on the right."
     },
     {
-      title: "Growth Metrics",
+      title: `Data & Metrics for ${cleanTitle}`,
+      layout: "data",
+      bullets: [
+        "Primary Metric: 64% increase in year-over-year adoption",
+        "Efficiency Gains: Reductions in operational waste by up to 30%",
+        "Market Impact: Estimated addressable market size of $4.2B"
+      ],
+      speakerNotes: "Let's look at the hard data supporting our analysis. These metrics demonstrate the clear momentum and impact."
+    },
+    {
+      title: `Strategic Framework`,
+      layout: "comparison",
+      bullets: [
+        "Traditional Legacy Model: High overhead, slower iterations, fragmented data silos",
+        "Modernized Solution: High-automation, real-time insights, unified platform"
+      ],
+      speakerNotes: "This slide compares the legacy approach on the left with our proposed modern solution on the right."
+    },
+    {
+      title: "Growth & Performance Chart",
       layout: "chart",
       bullets: [
-        "Active user growth: 34% Month-over-Month",
-        "Platform retention rate: 89% after 90 days",
-        "Customer satisfaction: 4.8 / 5 average rating"
+        "Phase 1: Initial exploration and pilot testing (12% growth)",
+        "Phase 2: Full deployment and team onboarding (45% growth)",
+        "Phase 3: Mature optimization and scaling (88% growth)"
       ],
-      speakerNotes: "Highlight the strong traction and positive customer response we have seen."
+      speakerNotes: "This chart visualizes the trajectory of growth over three key phases as we scale this initiative."
     },
     {
-      title: "Business Model",
-      layout: "content",
-      bullets: [
-        "SaaS Subscription: Tiered pricing for teams of all sizes",
-        "Enterprise License: Custom SLA, private cloud deployments",
-        "Integration Fees: Professional service setup and support"
-      ],
-      speakerNotes: "Explain the revenue streams and pricing structure."
-    },
-    {
-      title: "Next Steps & Action Plan",
+      title: `Action Plan & Next Steps`,
       layout: "closing",
       bullets: [
-        "Start your free 14-day trial today",
-        "Schedule a demo session with our product experts",
-        "Join our community of over 500+ active teams"
+        `Establish immediate priorities for ${cleanTitle}`,
+        "Formulate cross-functional implementation teams",
+        "Schedule bi-weekly milestone evaluations and feedback loops"
       ],
-      speakerNotes: "Make a strong call to action and invite questions."
+      speakerNotes: "To wrap up, here are the concrete actions we need to take to capitalize on these insights. I'll open the floor to questions."
     }
   ];
 }
@@ -108,18 +103,31 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             role: "system",
-            content: `You are an expert presentation designer. Generate a structured presentation based on the user's request.
+            content: `You are an expert presentation designer. Generate a highly detailed, topic-specific structured presentation based on the user's request.
 Return the output as a strict JSON array of slide objects.
 
-IMPORTANT: You MUST respond with ONLY a valid JSON array. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
+CRITICAL INSTRUCTION: Do not write generic slides (like "The Problem", "The Solution", "Introduction"). You must tailor the slides, titles, and content specifically to the requested topic: "${prompt}". Research and write substantive, professional, and fact-rich bullets.
 
-Each slide object must have:
-- "title": string (the slide headline)
-- "layout": one of "title", "content", "data", "chart", "comparison", "quote", "closing", "two_column"
-- "bullets": array of strings (key points for this slide)
-- "speakerNotes": string (brief notes for the speaker)
+For each layout type, follow these guidelines:
+- "title": A catchy, professional headline tailored to the topic.
+- "content": 3-5 substantive bullet points explaining key ideas.
+- "data": Key statistics, percentages, and metrics with real-ish/realistic numbers.
+- "chart": Phased data or trends showing growth or progression.
+- "comparison": Side-by-side comparison (e.g., before/after, pros/cons, option A vs B).
+- "two_column": A balanced two-column comparison or dual lists.
+- "quote": An impactful summary statement or industry quotation.
+- "closing": A strong call-to-action or conclusion slide.
 
-Generate between 6 and 10 slides. The first slide must be "title" layout. The last slide must be "closing" layout.`,
+Rules:
+- The first slide MUST be a "title" layout.
+- The last slide MUST be a "closing" layout.
+- Generate between 6 and 10 slides.
+- Use ONLY valid JSON. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
+- Each slide object must have:
+  - "title": string
+  - "layout": one of the allowed layouts
+  - "bullets": array of strings
+  - "speakerNotes": string`,
           },
           {
             role: "user",
