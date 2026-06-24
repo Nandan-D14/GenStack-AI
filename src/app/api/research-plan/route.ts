@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     }
 
     const client = new OpenAI({
-      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
-      apiKey: process.env.TOKENROUTER_API_KEY,
+      baseURL: "https://llm.kimchi.dev/openai/v1",
+      apiKey: process.env['CASTAI_API_KEY'],
     });
 
     const isRefinement = chatHistory && chatHistory.length > 0 && currentPlan;
@@ -71,30 +71,26 @@ Rules:
 - Audience: ${audience || "general"}
 - Each plan item id must be "item-{index}" (0-indexed)`;
 
-    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-      { role: "system", content: systemPrompt },
-    ];
+    let userContent = `Create a presentation plan about: ${prompt}\n\nINSTRUCTIONS:\n${systemPrompt}`;
+
+    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [];
 
     if (isRefinement && currentPlan) {
-      messages.push({
-        role: "assistant",
-        content: `I've created this plan: ${JSON.stringify(currentPlan)}`,
-      });
+      userContent = `I previously created this plan: ${JSON.stringify(currentPlan)}\n\nNow, refine it based on this new request: ${prompt}\n\nINSTRUCTIONS:\n${systemPrompt}`;
       // Add chat history
       for (const msg of chatHistory) {
         if (msg.role === "user" || msg.role === "assistant") {
           messages.push({ role: msg.role, content: msg.content });
         }
       }
-    } else {
-      messages.push({ role: "user", content: `Create a presentation plan about: ${prompt}` });
     }
+    messages.push({ role: "user", content: userContent });
 
     let result: { message: string; plan: PlanItem[] };
 
     try {
       const response = await client.chat.completions.create({
-        model: "minimax-m3",
+        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
         messages,
       });
 

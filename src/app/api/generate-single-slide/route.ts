@@ -31,47 +31,49 @@ export async function POST(req: NextRequest) {
     }
 
     const client = new OpenAI({
-      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
-      apiKey: process.env.TOKENROUTER_API_KEY,
+      baseURL: "https://llm.kimchi.dev/openai/v1",
+      apiKey: process.env['CASTAI_API_KEY'],
     });
 
     const allTitles = Array.isArray(allPlanItems)
       ? allPlanItems.map((p: PlanItem) => p.title).join(", ")
       : "";
 
-    const systemPrompt = `You are a presentation content writer. Generate content for exactly ONE slide.
+    const systemPrompt = `You are an expert slide creator. Your task is to generate ONE specific slide based on its plan item.
 
-Return ONLY valid JSON (no markdown):
+Return ONLY a valid JSON object matching this structure:
 {
-  "title": "The slide title",
-  "layout": "${planItem.layout}",
-  "bullets": ["bullet 1", "bullet 2", "bullet 3"],
-  "speakerNotes": "Brief speaker notes for this slide"
+  "title": "A strong, concise title for this slide",
+  "layout": "title" | "content" | "data" | "chart" | "quote" | "two_column" | "closing",
+  "bullets": [
+    "Array of strings. For content/two_column: 3-5 concise bullet points.",
+    "For data: strings like 'Number: Description'",
+    "For quote: ['The actual quote text', 'Author name']"
+  ],
+  "speakerNotes": "2-3 sentences of what the speaker should say for this slide."
 }
 
-Rules:
-- Keep the same layout: "${planItem.layout}"
-- Title should be punchy and clear (max 8 words)
-- 3-5 bullets for content/data/chart/two_column layouts
-- 1-2 bullets for title/quote/closing layouts
-- Bullets should be concise (max 15 words each)
-- Tone: ${tone || "professional"}
-- Audience: ${audience || "general"}
-- Full deck topic: ${deckContext}
-- All slides in deck: ${allTitles}`;
+Context for the entire presentation:
+- Topic: ${deckContext}
+- Audience: ${audience}
+- Tone: ${tone}
+
+This specific slide you must generate:
+- Plan item: ${JSON.stringify(planItem)}
+
+Make sure the content matches the plan item's layout and description exactly. Do not use markdown backticks in your output.`;
+
+    const userContent = `Generate the slide JSON as instructed.\n\nINSTRUCTIONS:\n${systemPrompt}`;
+    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      { role: "user", content: userContent },
+    ];
 
     let result;
 
     try {
       const response = await client.chat.completions.create({
-        model: "minimax-m3",
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `Generate content for slide titled "${planItem.title}". Description: ${planItem.description}`,
-          },
-        ],
+        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
+        messages,
       });
 
       const raw = response.choices[0]?.message?.content || "";

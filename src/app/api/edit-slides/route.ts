@@ -11,18 +11,11 @@ export async function POST(req: NextRequest) {
 
     console.log("Editing slides via MiniMax-M3...");
     const client = new OpenAI({
-      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
-      apiKey: process.env.TOKENROUTER_API_KEY,
+      baseURL: "https://llm.kimchi.dev/openai/v1",
+      apiKey: process.env['CASTAI_API_KEY'],
     });
 
-    let updatedSlides: any[];
-    try {
-      const response = await client.chat.completions.create({
-        model: "minimax-m3",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
+    const systemPrompt = `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
 Apply the edit instruction to the slides and return the COMPLETE updated slides array.
 
 EXAMPLES OF EDITS:
@@ -46,12 +39,16 @@ Each slide object must have:
 Rules:
 - Keep unaffected slides exactly the same.
 - Only modify slides that the edit instruction targets.
-- You may add, delete, or reorder slides if requested.`,
-          },
-          {
-            role: "user",
-            content: `Here are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`,
-          },
+- You may add, delete, or reorder slides if requested.`;
+
+    const userContent = `INSTRUCTIONS:\n${systemPrompt}\n\nHere are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`;
+
+    let updatedSlides: any[];
+    try {
+      const response = await client.chat.completions.create({
+        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
+        messages: [
+          { role: "user", content: userContent },
         ],
       });
 

@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
+import { Button, Input, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Progress, Tooltip, ScrollShadow } from "@heroui/react";
+import { Sparkles, ArrowLeft, CheckCircle, Send, Plus, GripVertical, Trash2, Edit3, Loader2 } from "lucide-react";
 
 type PlanItem = {
   id: string;
@@ -64,8 +66,10 @@ export default function PlanPage() {
   const [generationMode, setGenerationMode] =
     useState<GenerationMode>("custom");
 
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
   const runUpdatePlan = useMutation(api.decks.updatePlan);
@@ -275,15 +279,15 @@ export default function PlanPage() {
     );
   };
 
-  const moveItem = (itemId: string, dir: "up" | "down") => {
+  const handleDrop = (dropIdx: number) => {
+    if (draggedItemIndex === null || draggedItemIndex === dropIdx) return;
     setPlanItems((prev) => {
-      const idx = prev.findIndex((i) => i.id === itemId);
-      const target = dir === "up" ? idx - 1 : idx + 1;
-      if (target < 0 || target >= prev.length) return prev;
       const next = [...prev];
-      [next[idx], next[target]] = [next[target], next[idx]];
+      const [removed] = next.splice(draggedItemIndex, 1);
+      next.splice(dropIdx, 0, removed);
       return next.map((item, i) => ({ ...item, order: i }));
     });
+    setDraggedItemIndex(null);
   };
 
   const addItem = () => {
@@ -304,169 +308,94 @@ export default function PlanPage() {
       : 0;
 
   return (
-    <div className="h-screen bg-[#09090b] text-zinc-100 flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <header className="h-14 border-b border-zinc-800 flex items-center px-4 gap-3 bg-zinc-950/60 backdrop-blur-md flex-shrink-0">
-        <Link
-          href="/dashboard"
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-colors"
+    <div className="h-screen bg-[#09090b] text-zinc-100 flex flex-col overflow-hidden relative font-sans">
+      {/* Top bar (Transparent/Floating) */}
+      <header className="absolute top-0 left-0 w-full h-14 flex items-center px-6 gap-4 bg-transparent z-50 pointer-events-none">
+        <Button
+          isIconOnly
+          variant="light"
+          className="text-zinc-400 hover:text-white pointer-events-auto"
+          onPress={() => router.push("/dashboard")}
         >
-          <span className="material-symbols-outlined text-[20px]">
-            arrow_back
-          </span>
-        </Link>
-
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center border border-zinc-700">
-            <span className="material-symbols-outlined text-zinc-100 text-[14px]">
-              auto_awesome
-            </span>
-          </div>
-          <div>
-            <h1 className="text-sm text-zinc-100 font-semibold leading-none">
-              {(deck as any)?.title || "Planning..."}
-            </h1>
-            <p className="text-[11px] text-zinc-400 leading-none mt-1">
-              AI Research &amp; Plan
-            </p>
-          </div>
-        </div>
-
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
         <div className="flex-1" />
-
-        {/* Progress during generation */}
-        {phase === "generating" && (
-          <div className="flex items-center gap-3">
-            <div className="w-40 bg-zinc-900 rounded-full h-1.5 border border-zinc-800">
-              <div
-                className="bg-white h-1.5 rounded-full transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <span className="text-xs text-zinc-400 whitespace-nowrap">
-              {generatingIndex + 1} / {planItems.length} slides
-            </span>
-          </div>
-        )}
-
-        {/* Approve button */}
-        {phase === "planning" && planItems.length > 0 && (
-          <button
-            onClick={handleApprove}
-            className="bg-white text-black hover:bg-zinc-200 px-4 py-2 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all"
-          >
-            <span className="material-symbols-outlined text-[16px]">
-              check_circle
-            </span>
-            Approve &amp; Generate
-          </button>
-        )}
-
-        {phase === "done" && (
-          <div className="flex items-center gap-2 text-emerald-400">
-            <span className="material-symbols-outlined text-[18px]">
-              check_circle
-            </span>
-            <span className="text-xs">
-              Done! Redirecting...
-            </span>
-          </div>
-        )}
       </header>
 
       {/* Two-panel body */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* LEFT: Chat panel */}
-        <div className="w-[480px] flex-shrink-0 border-r border-zinc-800 flex flex-col bg-[#09090b]">
-          {/* Agent header */}
-          <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                <span className="material-symbols-outlined text-zinc-100 text-[16px]">
-                  smart_toy
-                </span>
+      <div className="flex-1 flex overflow-hidden pt-4 pb-4 px-4 gap-4">
+        {/* LEFT: Chat panel (Half screen, modern) */}
+        <div className="w-1/2 flex flex-col bg-transparent rounded-3xl overflow-hidden relative">
+          
+          <div className="px-6 py-4 flex items-center justify-between border-b border-white/5 bg-[#09090b]">
+             <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg">
+                <Sparkles className="text-white w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm text-zinc-100 font-semibold">
-                  Research Agent
+                <h1 className="text-sm font-semibold tracking-wide text-zinc-100">
+                  {(deck as any)?.title || "Planning Agent"}
+                </h1>
+                <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isProcessing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+                  {isProcessing ? "AI is thinking..." : "Ready to plan"}
                 </p>
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${isProcessing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`}
-                  />
-                  <p className="text-[11px] text-zinc-400">
-                    {isProcessing ? "Thinking..." : "Ready"}
-                  </p>
-                </div>
               </div>
             </div>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <ScrollShadow className="flex-1 p-6 space-y-6 bg-[#09090b]">
             {chatMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-32 text-zinc-400">
-                <div className="w-8 h-8 border-2 border-zinc-700 border-t-white rounded-full animate-spin mb-2" />
-                <p className="text-xs">
-                  Starting research...
-                </p>
+              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+                <Loader2 className="w-8 h-8 animate-spin mb-3 text-zinc-600" />
+                <p className="text-sm">Initiating research protocol...</p>
               </div>
             )}
 
             {chatMessages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="material-symbols-outlined text-zinc-100 text-[12px]">
-                      auto_awesome
-                    </span>
+                  <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
+                    <Sparkles className="w-4 h-4 text-blue-400" />
                   </div>
                 )}
                 <div
-                  className={`max-w-[82%] px-4 py-2.5 ${
+                  className={`max-w-[80%] px-5 py-3.5 text-[14px] leading-relaxed shadow-sm ${
                     msg.role === "user"
-                      ? "bg-white text-black rounded-2xl rounded-tr-sm font-medium"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-2xl rounded-tl-sm"
+                      ? "bg-zinc-100 text-zinc-900 rounded-2xl rounded-tr-sm font-medium"
+                      : "bg-[#18181b] border border-white/5 text-zinc-200 rounded-2xl rounded-tl-sm"
                   }`}
                 >
-                  <p className="text-[13px] leading-relaxed whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
                 </div>
               </div>
             ))}
 
-            {/* Typing indicator */}
             {isProcessing && (
-              <div className="flex gap-2">
-                <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-zinc-100 text-[12px]">
-                    auto_awesome
-                  </span>
+              <div className="flex gap-3 justify-start">
+                <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
                 </div>
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3">
-                  <div className="flex gap-1 items-center h-4">
-                    {[0, 150, 300].map((delay) => (
-                      <div
-                        key={delay}
-                        className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce"
-                        style={{ animationDelay: `${delay}ms` }}
-                      />
-                    ))}
+                <div className="bg-[#18181b] border border-white/5 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
+                  <div className="flex gap-1.5 items-center">
+                    <div className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 </div>
               </div>
             )}
             <div ref={chatEndRef} />
-          </div>
+          </ScrollShadow>
 
-          {/* Input */}
-          <div className="p-3 border-t border-zinc-800">
-            <div className="flex gap-2 bg-zinc-900 rounded-xl border border-zinc-800 px-3 py-2">
-              <textarea
+          {/* Floating Input area */}
+          <div className="p-6 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
+            <div className="relative flex items-center bg-[#18181b] rounded-2xl border border-white/10 shadow-xl focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500 transition-all p-1.5">
+              <Input
                 ref={inputRef}
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
@@ -478,273 +407,197 @@ export default function PlanPage() {
                 }}
                 placeholder={
                   phase === "planning"
-                    ? 'Try: "Add a ROI slide" or "Make it 6 slides"'
+                    ? 'Tell AI to "Add a ROI slide" or "Make it 6 slides"'
                     : "Plan is being generated..."
                 }
-                disabled={
-                  isProcessing || phase === "generating" || phase === "done"
-                }
-                rows={1}
-                className="flex-1 bg-transparent border-none outline-none text-[13px] text-zinc-100 placeholder:text-zinc-500 resize-none min-h-[28px] max-h-[80px] self-center"
+                disabled={isProcessing || phase === "generating" || phase === "done"}
+                className="flex-1"
+                classNames={{
+                  inputWrapper: "bg-transparent shadow-none hover:bg-transparent border-none !cursor-text group-data-[focus=true]:bg-transparent",
+                  input: "text-sm text-white placeholder:text-zinc-500",
+                }}
               />
-              <button
-                onClick={handleChatSend}
-                disabled={
-                  !chatInput.trim() ||
-                  isProcessing ||
-                  phase === "generating" ||
-                  phase === "done"
-                }
-                className="w-8 h-8 rounded-lg bg-white text-black flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-30 flex-shrink-0 self-end"
+              <Button
+                isIconOnly
+                radius="full"
+                color="primary"
+                className="bg-blue-600 text-white shadow-md hover:bg-blue-500 transition-colors w-10 h-10 min-w-10 ml-2"
+                onPress={handleChatSend}
+                disabled={!chatInput.trim() || isProcessing || phase === "generating" || phase === "done"}
               >
-                <span className="material-symbols-outlined text-black text-[16px]">
-                  send
-                </span>
-              </button>
+                <Send className="w-4 h-4 ml-0.5" />
+              </Button>
             </div>
-            <p className="text-[10px] text-zinc-500 mt-1.5 text-center">
-              Enter to send · Shift+Enter for newline
+            <p className="text-[11px] text-zinc-500 mt-3 text-center tracking-wide font-medium">
+              AI Copilot is active. Enter to send.
             </p>
           </div>
         </div>
 
-        {/* RIGHT: Plan cards */}
-        <div className="flex-1 overflow-y-auto bg-[#09090b]">
-          <div className="max-w-2xl mx-auto px-6 py-6">
-            {planItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-400">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
-                  <span className="material-symbols-outlined text-[32px] opacity-40 animate-pulse">
-                    article
-                  </span>
+        {/* RIGHT: Plan cards (Slides Sider - margin, rounded, hidden scrollbar) */}
+        <div className="w-1/2 flex flex-col bg-[#121214] rounded-3xl border border-white/5 overflow-hidden shadow-2xl relative">
+          
+          {phase === "generating" && (
+            <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800 z-10">
+              <div 
+                className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          )}
+
+          <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-[#121214] z-10">
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight">Presentation Plan</h2>
+              <p className="text-xs text-zinc-400 mt-1 font-medium">{planItems.length} slides • Drag to reorder</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {phase === "planning" && planItems.length > 0 && (
+                <Button
+                  color="primary"
+                  className="bg-white text-black font-semibold shadow-md hover:scale-105 transition-transform"
+                  startContent={<CheckCircle className="w-4 h-4" />}
+                  onPress={handleApprove}
+                >
+                  Approve & Generate
+                </Button>
+              )}
+              {phase === "generating" && generatingIndex >= 0 && (
+                <div className="flex items-center gap-2 text-zinc-400 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="text-xs font-medium">Generating {generatingIndex + 1}/{planItems.length}</span>
                 </div>
-                <p className="text-sm font-medium">
-                  Plan is being researched...
-                </p>
-                <p className="text-xs opacity-60 mt-1">
-                  This usually takes a few seconds
-                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-8 py-6 [&::-webkit-scrollbar]:hidden">
+            {planItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+                <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-white/5 flex items-center justify-center mb-5 shadow-inner">
+                  <Sparkles className="w-8 h-8 text-zinc-600 animate-pulse" />
+                </div>
+                <p className="text-base font-medium text-zinc-300">Structuring presentation...</p>
+                <p className="text-sm mt-2">AI is analyzing the topic to build a narrative.</p>
               </div>
             ) : (
-              <>
-                {/* Plan header */}
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 className="text-xl text-zinc-100 font-bold tracking-tight">
-                      Presentation Plan
-                    </h2>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      {planItems.length} slides
-                      {isEditable && " · Click any field to edit"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {phase === "generating" && generatingIndex >= 0 && (
-                      <div className="flex items-center gap-2 text-zinc-400">
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span className="text-xs">
-                          Generating...
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-                      <button
-                        type="button"
-                        onClick={() => setGenerationMode("custom")}
-                        disabled={!isEditable}
-                        className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                          generationMode === "custom"
-                            ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
-                            : "text-zinc-400 hover:text-zinc-200"
-                        } disabled:opacity-60`}
-                      >
-                        Custom
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setGenerationMode("template")}
-                        disabled={!isEditable}
-                        className={`px-3 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                          generationMode === "template"
-                            ? "bg-zinc-800 text-white shadow-sm border border-zinc-700/50"
-                            : "text-zinc-400 hover:text-zinc-200"
-                        } disabled:opacity-60`}
-                      >
-                        Template
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Plan items */}
-                <div className="space-y-2.5">
-                  {planItems.map((item, idx) => (
+              <div className="space-y-4 pb-10">
+                {planItems.map((item, idx) => {
+                  const isDragging = draggedItemIndex === idx;
+                  const isGeneratingThis = generatingIndex === idx;
+                  
+                  return (
                     <div
                       key={item.id}
-                      className={`group relative rounded-xl border p-4 transition-all duration-200 ${
-                        generatingIndex === idx
-                          ? "border-white bg-zinc-900/50 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
-                          : "border-zinc-800 bg-[#18181b] hover:border-zinc-700"
+                      draggable={isEditable}
+                      onDragStart={() => setDraggedItemIndex(idx)}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                      onDrop={(e) => { e.preventDefault(); handleDrop(idx); }}
+                      className={`group relative flex items-start gap-4 p-5 rounded-2xl border transition-all duration-300 ${
+                        isDragging ? "opacity-40 scale-[0.98] border-dashed border-zinc-500" :
+                        isGeneratingThis ? "border-blue-500/50 bg-blue-500/5 shadow-[0_0_30px_rgba(59,130,246,0.1)] scale-[1.02]" :
+                        "border-white/5 bg-[#18181b] hover:border-white/10 hover:shadow-lg"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Slide number */}
-                        <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 font-bold text-sm border ${
-                            generatingIndex === idx
-                              ? "bg-white text-black border-white"
-                              : "bg-zinc-900 text-zinc-400 border-zinc-800"
-                          }`}
-                        >
-                          {generatingIndex === idx ? (
-                            <span className="material-symbols-outlined text-[14px]">
-                              autorenew
-                            </span>
-                          ) : (
-                            idx + 1
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 space-y-2">
-                          {/* Type badge + layout selector */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${LAYOUT_COLORS[item.layout] || "bg-zinc-900 text-zinc-400 border-zinc-800"}`}
-                            >
-                              {LAYOUT_LABELS[item.layout] || item.layout}
-                            </span>
-                            {isEditable && (
-                              <select
-                                value={item.layout}
-                                onChange={(e) =>
-                                  updateItem(item.id, "layout", e.target.value)
-                                }
-                                className="text-[11px] bg-zinc-900 border border-zinc-800/80 rounded-md px-2 py-0.5 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700 cursor-pointer"
-                              >
-                                {Object.entries(LAYOUT_LABELS).map(
-                                  ([val, label]) => (
-                                    <option key={val} value={val}>
-                                      {label}
-                                    </option>
-                                  ),
-                                )}
-                              </select>
-                            )}
-                          </div>
-
-                          {/* Title */}
-                          {isEditable ? (
-                            <input
-                              value={item.title}
-                              onChange={(e) =>
-                                updateItem(item.id, "title", e.target.value)
-                              }
-                              className="w-full bg-transparent border-none outline-none text-sm text-zinc-100 font-semibold focus:ring-1 focus:ring-zinc-700 rounded px-1 py-0.5 -ml-1 transition-all"
-                              placeholder="Slide title..."
-                            />
-                          ) : (
-                            <p className="text-sm text-zinc-100 font-semibold px-1">
-                              {item.title}
-                            </p>
-                          )}
-
-                          {/* Description */}
-                          {isEditable ? (
-                            <input
-                              value={item.description}
-                              onChange={(e) =>
-                                updateItem(
-                                  item.id,
-                                  "description",
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full bg-transparent border-none outline-none text-xs text-zinc-400 focus:ring-1 focus:ring-zinc-800 rounded px-1 py-0.5 -ml-1"
-                              placeholder="What should this slide cover?"
-                            />
-                          ) : (
-                            <p className="text-xs text-zinc-400 px-1">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Actions */}
+                      {/* Drag Handle & Number */}
+                      <div className="flex flex-col items-center gap-2 mt-1">
                         {isEditable && (
-                          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            <button
-                              onClick={() => moveItem(item.id, "up")}
-                              disabled={idx === 0}
-                              className="w-6 h-6 rounded-md bg-zinc-900 border border-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-zinc-100 disabled:opacity-20 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[13px]">
-                                arrow_upward
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => moveItem(item.id, "down")}
-                              disabled={idx === planItems.length - 1}
-                              className="w-6 h-6 rounded-md bg-zinc-900 border border-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-zinc-100 disabled:opacity-20 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[13px]">
-                                arrow_downward
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => deleteItem(item.id)}
-                              disabled={planItems.length <= 2}
-                              className="w-6 h-6 rounded-md bg-zinc-900 border border-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-red-400 disabled:opacity-20 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[13px]">
-                                delete
-                              </span>
-                            </button>
+                          <div className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 transition-colors">
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                          isGeneratingThis ? "bg-blue-500 text-white" : "bg-zinc-800 text-zinc-400"
+                        }`}>
+                          {isGeneratingThis ? <Loader2 className="w-3 h-3 animate-spin" /> : idx + 1}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${LAYOUT_COLORS[item.layout] || "bg-zinc-900 text-zinc-400 border-zinc-800"}`}>
+                            {LAYOUT_LABELS[item.layout] || item.layout}
+                          </span>
+                          {isEditable && (
+                            <Dropdown classNames={{ content: "bg-zinc-900 border border-white/10 min-w-[150px] rounded-xl" }}>
+                              <DropdownTrigger>
+                                <Button size="sm" variant="light" className="h-6 text-[10px] font-medium text-zinc-400 hover:text-white px-2 min-w-0">
+                                  Change Layout
+                                </Button>
+                              </DropdownTrigger>
+                              <DropdownMenu 
+                                aria-label="Select layout"
+                                itemClasses={{ base: "text-zinc-300 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-white rounded-lg py-2" }}
+                                onAction={(key) => updateItem(item.id, "layout", key as string)}
+                              >
+                                {Object.entries(LAYOUT_LABELS).map(([val, label]) => (
+                                  <DropdownItem key={val}>{label}</DropdownItem>
+                                ))}
+                              </DropdownMenu>
+                            </Dropdown>
+                          )}
+                        </div>
+
+                        {isEditable ? (
+                          <div className="space-y-2">
+                            <Input 
+                              variant="underlined"
+                              value={item.title}
+                              onChange={(e) => updateItem(item.id, "title", e.target.value)}
+                              classNames={{
+                                input: "text-base font-bold text-white tracking-tight",
+                                inputWrapper: "px-0 border-zinc-700 data-[hover=true]:border-zinc-500"
+                              }}
+                              placeholder="Slide Title"
+                            />
+                            <Input 
+                              variant="underlined"
+                              value={item.description}
+                              onChange={(e) => updateItem(item.id, "description", e.target.value)}
+                              classNames={{
+                                input: "text-sm text-zinc-400 font-medium",
+                                inputWrapper: "px-0 border-zinc-800 data-[hover=true]:border-zinc-600"
+                              }}
+                              placeholder="Slide Description"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-base font-bold text-white tracking-tight">{item.title}</p>
+                            <p className="text-sm text-zinc-400 font-medium">{item.description}</p>
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
 
-                  {/* Add slide button */}
-                  {isEditable && (
-                    <button
-                      onClick={addItem}
-                      className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-all flex items-center justify-center gap-2 text-xs font-medium"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">
-                        add
-                      </span>
-                      Add Slide
-                    </button>
-                  )}
-                </div>
-
-                {/* Bottom approve CTA */}
-                {isEditable && planItems.length > 0 && (
-                  <div className="mt-8 p-4 bg-[#18181b] border border-zinc-800 rounded-xl flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-zinc-100 font-semibold">
-                        Ready to generate?
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        {generationMode === "template"
-                          ? "Each slide becomes a separate Thesys artifact"
-                          : "Each slide will be crafted by your custom renderer"}
-                      </p>
+                      {/* Delete */}
+                      {isEditable && planItems.length > 2 && (
+                        <Button 
+                          isIconOnly 
+                          variant="light" 
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                          onPress={() => deleteItem(item.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
-                    <button
-                      onClick={handleApprove}
-                      className="bg-white text-black hover:bg-zinc-200 px-5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-all"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        rocket_launch
-                      </span>
-                      Generate Slides
-                    </button>
-                  </div>
+                  );
+                })}
+
+                {/* Add Slide Button */}
+                {isEditable && (
+                  <Button
+                    variant="bordered"
+                    className="w-full h-14 border-dashed border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-white/5 rounded-2xl font-medium transition-all group"
+                    startContent={<Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+                    onPress={addItem}
+                  >
+                    Add Custom Slide
+                  </Button>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

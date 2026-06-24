@@ -83,7 +83,7 @@ function generateMockSlides(prompt: string): any[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, deckId } = await req.json();
+    const { prompt, deckId, tone, audience } = await req.json();
 
     if (!prompt || !deckId) {
       return NextResponse.json({ error: "Missing prompt or deckId" }, { status: 400 });
@@ -91,47 +91,43 @@ export async function POST(req: NextRequest) {
 
     console.log("Generating slides JSON via minimax-m3...");
     const client = new OpenAI({
-      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
-      apiKey: process.env.TOKENROUTER_API_KEY,
+      baseURL: "https://llm.kimchi.dev/openai/v1",
+      apiKey: process.env['CASTAI_API_KEY'],
     });
 
     let slidesJson: any[];
 
     try {
+      const slidesCount = 7;
+      const promptContent = `You are an expert slide generator. Create exactly ${slidesCount} slides for a presentation about "${prompt}".
+
+Return ONLY a valid JSON object with a "slides" array. No markdown, no explanation.
+{
+  "slides": [
+    {
+      "title": "Slide Title",
+      "layout": "title" | "content" | "data" | "chart" | "quote" | "two_column" | "closing",
+      "bullets": ["Bullet 1", "Bullet 2"],
+      "speakerNotes": "What to say"
+    }
+  ]
+}
+
+Layout guidelines:
+- title: 1-2 bullets (subtitle, author)
+- content/two_column: 3-6 key points
+- data/chart: bullets should be like "45%: Market share growth"
+- quote: exactly 2 bullets: ["The quote text", "Author Name"]
+
+Context: Tone is ${tone || "professional"}, Audience is ${audience || "general"}.
+First slide MUST be 'title' layout. Last slide MUST be 'closing' layout.`;
+
       const response = await client.chat.completions.create({
-        model: "minimax-m3",
+        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
         messages: [
           {
-            role: "system",
-            content: `You are an expert presentation designer. Generate a highly detailed, topic-specific structured presentation based on the user's request.
-Return the output as a strict JSON array of slide objects.
-
-CRITICAL INSTRUCTION: Do not write generic slides (like "The Problem", "The Solution", "Introduction"). You must tailor the slides, titles, and content specifically to the requested topic: "${prompt}". Research and write substantive, professional, and fact-rich bullets.
-
-For each layout type, follow these guidelines:
-- "title": A catchy, professional headline tailored to the topic.
-- "content": 3-5 substantive bullet points explaining key ideas.
-- "data": Key statistics, percentages, and metrics with real-ish/realistic numbers.
-- "chart": Phased data or trends showing growth or progression.
-- "comparison": Side-by-side comparison (e.g., before/after, pros/cons, option A vs B).
-- "two_column": A balanced two-column comparison or dual lists.
-- "quote": An impactful summary statement or industry quotation.
-- "closing": A strong call-to-action or conclusion slide.
-
-Rules:
-- The first slide MUST be a "title" layout.
-- The last slide MUST be a "closing" layout.
-- Generate between 6 and 10 slides.
-- Use ONLY valid JSON. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
-- Each slide object must have:
-  - "title": string
-  - "layout": one of the allowed layouts
-  - "bullets": array of strings
-  - "speakerNotes": string`,
-          },
-          {
             role: "user",
-            content: prompt,
+            content: `Generate the presentation JSON as instructed.\n\nINSTRUCTIONS:\n${promptContent}`,
           },
         ],
       });

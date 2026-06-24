@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
     }
 
     const client = new OpenAI({
-      baseURL: process.env.TOKENROUTER_BASE_URL || "https://api.tokenrouter.com/v1",
-      apiKey: process.env.TOKENROUTER_API_KEY,
+      baseURL: "https://llm.kimchi.dev/openai/v1",
+      apiKey: process.env['CASTAI_API_KEY'],
     });
 
     let bulletsParsed: string[] = [];
@@ -64,9 +64,9 @@ OR if updating the current slide:
   }
 }`;
 
-    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-      { role: "system", content: systemPrompt },
-    ];
+    const userContent = `INSTRUCTIONS:\n${systemPrompt}\n\nUSER MESSAGE:\n${message}`;
+
+    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [];
 
     // Add chat history (last 6 messages for context)
     for (const msg of history.slice(-6)) {
@@ -74,12 +74,12 @@ OR if updating the current slide:
         messages.push({ role: msg.role, content: msg.content });
       }
     }
-    messages.push({ role: "user", content: message });
+    messages.push({ role: "user", content: userContent });
 
     let result;
     try {
       const response = await client.chat.completions.create({
-        model: "minimax-m3",
+        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
         messages,
       });
 
