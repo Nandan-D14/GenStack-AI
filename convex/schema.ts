@@ -35,6 +35,8 @@ export default defineSchema({
     brandKitId: v.optional(v.id("brandKits")),
     c1ArtifactId: v.optional(v.string()),
     c1Response: v.optional(v.string()),
+    planItems: v.optional(v.string()), // JSON string of PlanItem[]
+    planStatus: v.optional(v.string()), // "planning" | "approved" | "generating" | "done"
     createdAt: v.string(),
     updatedAt: v.string(),
   }).index("by_userId", ["userId"]),
@@ -50,7 +52,8 @@ export default defineSchema({
     isLocked: v.boolean(),
     isGenerated: v.boolean(),
     updatedAt: v.string(),
-  }).index("by_deckId", ["deckId"])
+  })
+    .index("by_deckId", ["deckId"])
     .index("by_deckId_order", ["deckId", "order"]),
 
   brandKits: defineTable({

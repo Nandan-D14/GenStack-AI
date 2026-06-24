@@ -1,41 +1,41 @@
 "use client";
 
-import { 
-  Button, 
-  Divider, 
-  Textarea, 
+import {
+  Button,
+  Divider,
+  Textarea,
   Input,
-  Dropdown, 
-  DropdownTrigger, 
-  DropdownMenu, 
-  DropdownItem, 
-  Badge, 
-  Switch, 
-  Tooltip 
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  Badge,
+  Switch,
+  Tooltip,
 } from "@heroui/react";
-import { 
-  ArrowLeft, 
-  Sparkles, 
-  Wand2, 
-  Type, 
-  Send, 
-  Loader2, 
-  Play, 
-  Download, 
-  X, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Trash2, 
-  Copy, 
-  Lock, 
-  Unlock, 
-  Edit3, 
-  LayoutGrid, 
-  FileDown, 
+import {
+  ArrowLeft,
+  Sparkles,
+  Wand2,
+  Type,
+  Send,
+  Loader2,
+  Play,
+  Download,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Copy,
+  Lock,
+  Unlock,
+  Edit3,
+  LayoutGrid,
+  FileDown,
   Eye,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -62,6 +62,15 @@ export default function EditorPage() {
   const [isAiEditing, setIsAiEditing] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [generateStarted, setGenerateStarted] = useState(false);
+
+  // Canvas chatbot state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [canvasChatMessages, setCanvasChatMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
+  const [canvasChatInput, setCanvasChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const canvasChatEndRef = useRef<HTMLDivElement>(null);
 
   // Export states
   const [isExporting, setIsExporting] = useState(false);
@@ -98,7 +107,11 @@ export default function EditorPage() {
         let rawResponse = deck.c1Response.trim();
         const firstBracket = rawResponse.indexOf("[");
         const lastBracket = rawResponse.lastIndexOf("]");
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        if (
+          firstBracket !== -1 &&
+          lastBracket !== -1 &&
+          lastBracket > firstBracket
+        ) {
           rawResponse = rawResponse.substring(firstBracket, lastBracket + 1);
         }
         const parsed = JSON.parse(rawResponse);
@@ -125,7 +138,13 @@ export default function EditorPage() {
     if (typeof window !== "undefined" && deck) {
       const searchParams = new URLSearchParams(window.location.search);
       const shouldGenerate = searchParams.get("generate") === "true";
-      if (shouldGenerate && slides.length === 0 && !deck.c1Response && !generateStarted && !isGenerating) {
+      if (
+        shouldGenerate &&
+        slides.length === 0 &&
+        !deck.c1Response &&
+        !generateStarted &&
+        !isGenerating
+      ) {
         setGenerateStarted(true);
         // Clean URL query params
         window.history.replaceState({}, "", `/deck/${id}/editor`);
@@ -142,11 +161,11 @@ export default function EditorPage() {
           setIsFullscreen(false);
         } else if (e.key === "ArrowRight" || e.key === "Space") {
           if (selectedSlideIndex < slides.length - 1) {
-            setSelectedSlideIndex(prev => prev + 1);
+            setSelectedSlideIndex((prev) => prev + 1);
           }
         } else if (e.key === "ArrowLeft") {
           if (selectedSlideIndex > 0) {
-            setSelectedSlideIndex(prev => prev - 1);
+            setSelectedSlideIndex((prev) => prev - 1);
           }
         }
       }
@@ -172,7 +191,9 @@ export default function EditorPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Generation failed (${response.status})`);
+        throw new Error(
+          errorData.error || `Generation failed (${response.status})`,
+        );
       }
 
       const data = await response.json();
@@ -275,7 +296,9 @@ export default function EditorPage() {
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
-      await triggerAiEdit("Regenerate the presentation with fresh, improved content. Keep the same topic but make the content more compelling and detailed.");
+      await triggerAiEdit(
+        "Regenerate the presentation with fresh, improved content. Keep the same topic but make the content more compelling and detailed.",
+      );
     } catch (e) {
       console.error(e);
     } finally {
@@ -286,7 +309,9 @@ export default function EditorPage() {
   const handleToneChange = async (selectedTone: string) => {
     setRegenerating(true);
     try {
-      await triggerAiEdit(`Change the tone of the presentation to be more ${selectedTone}. Adjust the wording accordingly.`);
+      await triggerAiEdit(
+        `Change the tone of the presentation to be more ${selectedTone}. Adjust the wording accordingly.`,
+      );
     } catch (e) {
       console.error(e);
     } finally {
@@ -297,9 +322,10 @@ export default function EditorPage() {
   const handleLengthChange = async (selectedLength: string) => {
     setRegenerating(true);
     try {
-      const instruction = selectedLength === "expand"
-        ? "Expand the presentation slides with more detail and additional points."
-        : "Shorten the presentation slides to be more concise, keeping only the most important points.";
+      const instruction =
+        selectedLength === "expand"
+          ? "Expand the presentation slides with more detail and additional points."
+          : "Shorten the presentation slides to be more concise, keeping only the most important points.";
       await triggerAiEdit(instruction);
     } catch (e) {
       console.error(e);
@@ -345,7 +371,8 @@ export default function EditorPage() {
 
   const handleAddSlide = async () => {
     if (!id) return;
-    const nextOrder = slides.length > 0 ? slides[slides.length - 1].order + 1 : 0;
+    const nextOrder =
+      slides.length > 0 ? slides[slides.length - 1].order + 1 : 0;
     await runCreateSlide({
       deckId: id as any,
       title: "New Slide Title",
@@ -358,7 +385,7 @@ export default function EditorPage() {
   const handleDuplicateSlide = async () => {
     if (!activeSlide) return;
     await runDuplicateSlide({ id: activeSlide._id });
-    setSelectedSlideIndex(prev => prev + 1);
+    setSelectedSlideIndex((prev) => prev + 1);
   };
 
   const handleDeleteSlide = async () => {
@@ -373,7 +400,8 @@ export default function EditorPage() {
   const handleMoveSlide = async (direction: "up" | "down") => {
     if (!activeSlide || slides.length <= 1) return;
     const currentIndex = selectedSlideIndex;
-    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    const targetIndex =
+      direction === "up" ? currentIndex - 1 : currentIndex + 1;
 
     if (targetIndex < 0 || targetIndex >= slides.length) return;
 
@@ -415,6 +443,76 @@ export default function EditorPage() {
       alert(`Export failed: ${error.message}`);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────
+  // CANVAS CHATBOT
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    canvasChatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [canvasChatMessages]);
+
+  const handleCanvasChat = async () => {
+    const msg = canvasChatInput.trim();
+    if (!msg || isChatLoading) return;
+    setCanvasChatInput("");
+    setCanvasChatMessages((prev) => [...prev, { role: "user", content: msg }]);
+    setIsChatLoading(true);
+
+    try {
+      const res = await fetch("/api/chat-slide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: msg,
+          currentSlide: activeSlide
+            ? {
+                title: activeSlide.title,
+                layout: activeSlide.layout,
+                content: activeSlide.content,
+              }
+            : null,
+          allSlides: slides.map((s: any) => ({
+            title: s.title,
+            layout: s.layout,
+          })),
+          deckTitle: deck?.title || "",
+          history: canvasChatMessages.slice(-6),
+        }),
+      });
+
+      const data = await res.json();
+      const reply =
+        data.reply ||
+        "I can help with that. What specifically would you like to change?";
+      setCanvasChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: reply },
+      ]);
+
+      // Apply slide update if returned
+      if (data.slideUpdate && activeSlide) {
+        const update: any = {};
+        if (data.slideUpdate.title) update.title = data.slideUpdate.title;
+        if (Array.isArray(data.slideUpdate.bullets))
+          update.content = JSON.stringify(data.slideUpdate.bullets);
+        if (data.slideUpdate.speakerNotes)
+          update.speakerNotes = data.slideUpdate.speakerNotes;
+        if (Object.keys(update).length > 0) {
+          await runUpdateSlideContent({ id: activeSlide._id, ...update });
+        }
+      }
+    } catch {
+      setCanvasChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, couldn't process that. Try again.",
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -519,7 +617,11 @@ export default function EditorPage() {
   // ─────────────────────────────────────────────
   // RENDER CANVAS LAYOUTS
   // ─────────────────────────────────────────────
-  const renderSlideContent = (slide: any, bullets: string[], isInteractive: boolean) => {
+  const renderSlideContent = (
+    slide: any,
+    bullets: string[],
+    isInteractive: boolean,
+  ) => {
     if (!slide) return null;
 
     switch (slide.layout) {
@@ -531,7 +633,9 @@ export default function EditorPage() {
               <h1
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
-                onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
+                onBlur={(e) =>
+                  handleUpdateSlideTitle(e.currentTarget.innerText)
+                }
                 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-tight focus:outline-none focus:ring-1 focus:ring-[#7170FF]/50 px-2 py-1 rounded"
               >
                 {slide.title}
@@ -554,7 +658,9 @@ export default function EditorPage() {
               <h1
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
-                onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
+                onBlur={(e) =>
+                  handleUpdateSlideTitle(e.currentTarget.innerText)
+                }
                 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight focus:outline-none focus:ring-1 focus:ring-[#7170FF]/50 px-2 py-1 rounded"
               >
                 {slide.title}
@@ -587,11 +693,15 @@ export default function EditorPage() {
         return (
           <div className="w-full h-full flex flex-col justify-center items-center px-16 relative bg-[#121314]">
             <div className="relative z-10 text-center space-y-6 max-w-4xl">
-              <span className="text-7xl font-serif text-[#7170FF]/40 select-none block h-6 leading-none -mt-4">“</span>
+              <span className="text-7xl font-serif text-[#7170FF]/40 select-none block h-6 leading-none -mt-4">
+                “
+              </span>
               <blockquote
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
-                onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
+                onBlur={(e) =>
+                  handleUpdateSlideTitle(e.currentTarget.innerText)
+                }
                 className="text-xl md:text-2xl lg:text-3xl italic text-white/90 font-serif leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#7170FF]/50 px-2 py-1 rounded"
               >
                 {slide.title}
@@ -658,7 +768,9 @@ export default function EditorPage() {
                       suppressContentEditableWarning
                       onBlur={(e) => {
                         const newBullets = [...bullets];
-                        newBullets[idx] = e.currentTarget.innerText + (colonIdx !== -1 ? ": " + label : "");
+                        newBullets[idx] =
+                          e.currentTarget.innerText +
+                          (colonIdx !== -1 ? ": " + label : "");
                         handleUpdateSlideBullets(newBullets);
                       }}
                       className="text-3xl md:text-4xl font-extrabold text-[#7170FF] tracking-tight focus:outline-none focus:ring-1 focus:ring-[#7170FF]/50 px-2 py-0.5 rounded"
@@ -670,7 +782,11 @@ export default function EditorPage() {
                       suppressContentEditableWarning
                       onBlur={(e) => {
                         const newBullets = [...bullets];
-                        newBullets[idx] = stat + (colonIdx !== -1 ? ": " + e.currentTarget.innerText : " " + e.currentTarget.innerText);
+                        newBullets[idx] =
+                          stat +
+                          (colonIdx !== -1
+                            ? ": " + e.currentTarget.innerText
+                            : " " + e.currentTarget.innerText);
                         handleUpdateSlideBullets(newBullets);
                       }}
                       className="text-default-400 text-xs md:text-sm font-medium mt-2 leading-snug focus:outline-none focus:ring-1 focus:ring-[#7170FF]/50 px-2 py-0.5 rounded"
@@ -720,13 +836,23 @@ export default function EditorPage() {
               <div className="bg-white/[0.02] border border-white/10 p-6 rounded-2xl flex flex-col justify-center h-48 md:h-56 relative overflow-hidden shadow-inner">
                 <div className="flex items-end justify-between h-4/5 gap-3 pt-6 border-b border-white/10 pb-2">
                   <div className="w-full flex items-end justify-around h-full gap-2">
-                    <div className="w-1/4 bg-[#7170FF]/40 hover:bg-[#7170FF]/60 transition-all rounded-t-lg h-[40%] flex justify-center items-start pt-1 text-[10px] text-white/50">Q1</div>
-                    <div className="w-1/4 bg-[#7170FF]/60 hover:bg-[#7170FF]/80 transition-all rounded-t-lg h-[70%] flex justify-center items-start pt-1 text-[10px] text-white/70">Q2</div>
-                    <div className="w-1/4 bg-[#7170FF]/80 hover:bg-[#7170FF]/100 transition-all rounded-t-lg h-[90%] flex justify-center items-start pt-1 text-[10px] text-white font-semibold">Q3</div>
-                    <div className="w-1/4 bg-[#7170FF]/50 hover:bg-[#7170FF]/70 transition-all rounded-t-lg h-[55%] flex justify-center items-start pt-1 text-[10px] text-white/50">Q4</div>
+                    <div className="w-1/4 bg-[#7170FF]/40 hover:bg-[#7170FF]/60 transition-all rounded-t-lg h-[40%] flex justify-center items-start pt-1 text-[10px] text-white/50">
+                      Q1
+                    </div>
+                    <div className="w-1/4 bg-[#7170FF]/60 hover:bg-[#7170FF]/80 transition-all rounded-t-lg h-[70%] flex justify-center items-start pt-1 text-[10px] text-white/70">
+                      Q2
+                    </div>
+                    <div className="w-1/4 bg-[#7170FF]/80 hover:bg-[#7170FF]/100 transition-all rounded-t-lg h-[90%] flex justify-center items-start pt-1 text-[10px] text-white font-semibold">
+                      Q3
+                    </div>
+                    <div className="w-1/4 bg-[#7170FF]/50 hover:bg-[#7170FF]/70 transition-all rounded-t-lg h-[55%] flex justify-center items-start pt-1 text-[10px] text-white/50">
+                      Q4
+                    </div>
                   </div>
                 </div>
-                <div className="text-center text-xs text-default-400 mt-2 font-medium">Quarterly Growth Metrics</div>
+                <div className="text-center text-xs text-default-400 mt-2 font-medium">
+                  Quarterly Growth Metrics
+                </div>
               </div>
             </div>
           </div>
@@ -852,7 +978,9 @@ export default function EditorPage() {
           {isGenerating && (
             <div className="flex items-center gap-2 ml-2 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
               <Loader2 className="w-3 h-3 text-[#7170FF] animate-spin" />
-              <span className="text-[10px] text-[#7170FF] font-medium">{generateStatus}</span>
+              <span className="text-[10px] text-[#7170FF] font-medium">
+                {generateStatus}
+              </span>
             </div>
           )}
         </div>
@@ -896,7 +1024,9 @@ export default function EditorPage() {
         {/* LEFT SIDEBAR: Slide thumbnails */}
         <div className="w-56 bg-[#0A0B0C] border-r border-white/[0.06] flex flex-col shrink-0 select-none">
           <div className="p-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
-            <span className="text-xs font-semibold text-white/50 tracking-wider uppercase">Slides</span>
+            <span className="text-xs font-semibold text-white/50 tracking-wider uppercase">
+              Slides
+            </span>
             <Button
               size="sm"
               variant="flat"
@@ -910,28 +1040,37 @@ export default function EditorPage() {
 
           <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-none">
             {slides.length === 0 ? (
-              <div className="text-center py-8 text-xs text-white/30">No slides</div>
+              <div className="text-center py-8 text-xs text-white/30">
+                No slides
+              </div>
             ) : (
               slides.map((slide, idx) => {
                 const isSelected = idx === selectedSlideIndex;
                 return (
-                  <div key={slide._id} className="flex flex-col items-center group">
+                  <div
+                    key={slide._id}
+                    className="flex flex-col items-center group"
+                  >
                     <button
                       onClick={() => {
                         setSelectedSlideIndex(idx);
                         setShowAll(false);
                       }}
                       className={`w-full aspect-video rounded-lg overflow-hidden transition-all duration-200 border-2 text-left relative ${
-                        isSelected 
-                          ? "border-[#7170FF] shadow-lg shadow-[#7170FF]/15 scale-[1.02]" 
+                        isSelected
+                          ? "border-[#7170FF] shadow-lg shadow-[#7170FF]/15 scale-[1.02]"
                           : "border-white/[0.08] hover:border-white/20"
                       }`}
                     >
                       {renderThumbnailPreview(slide)}
                     </button>
-                    <span className={`text-[10px] mt-1.5 font-semibold transition-colors duration-150 ${
-                      isSelected ? "text-[#7170FF]" : "text-white/40 group-hover:text-white/60"
-                    }`}>
+                    <span
+                      className={`text-[10px] mt-1.5 font-semibold transition-colors duration-150 ${
+                        isSelected
+                          ? "text-[#7170FF]"
+                          : "text-white/40 group-hover:text-white/60"
+                      }`}
+                    >
                       {idx + 1}
                     </span>
                   </div>
@@ -947,21 +1086,32 @@ export default function EditorPage() {
             {isGenerating ? (
               <div className="text-center py-12">
                 <Loader2 className="w-12 h-12 text-[#7170FF] mx-auto mb-4 animate-spin" />
-                <p className="text-lg text-white font-medium">Generating with AI...</p>
-                <p className="text-sm text-default-400 mt-1">{generateStatus}</p>
+                <p className="text-lg text-white font-medium">
+                  Generating with AI...
+                </p>
+                <p className="text-sm text-default-400 mt-1">
+                  {generateStatus}
+                </p>
               </div>
             ) : slides.length === 0 ? (
               <div className="text-center py-12 bg-[#121314] rounded-2xl border border-white/[0.08] shadow-2xl p-8 max-w-md w-full">
                 <Sparkles className="w-12 h-12 text-[#7170FF] mx-auto mb-4 animate-pulse" />
-                <p className="text-lg text-white font-semibold">Start building slides</p>
-                <p className="text-sm text-default-400 mt-2">Let AI draft your deck in seconds, or add individual slides manually.</p>
+                <p className="text-lg text-white font-semibold">
+                  Start building slides
+                </p>
+                <p className="text-sm text-default-400 mt-2">
+                  Let AI draft your deck in seconds, or add individual slides
+                  manually.
+                </p>
                 <div className="flex flex-col gap-2 mt-6">
                   <Button
                     color="primary"
                     size="md"
                     className="bg-[#7170FF] text-white font-semibold w-full"
                     startContent={<Sparkles className="w-4 h-4" />}
-                    onPress={() => deck?.title && triggerAiGeneration(deck.title)}
+                    onPress={() =>
+                      deck?.title && triggerAiGeneration(deck.title)
+                    }
                     isLoading={isGenerating}
                   >
                     Generate with AI
@@ -989,14 +1139,16 @@ export default function EditorPage() {
                           setShowAll(false);
                         }}
                         className={`w-full aspect-video rounded-lg overflow-hidden border-2 transition-all hover:scale-[1.02] ${
-                          idx === selectedSlideIndex 
-                            ? "border-[#7170FF]" 
+                          idx === selectedSlideIndex
+                            ? "border-[#7170FF]"
                             : "border-white/[0.08] hover:border-white/20"
                         }`}
                       >
                         {renderThumbnailPreview(slide)}
                       </button>
-                      <span className="text-xs text-white/50 mt-2 font-medium">Slide {idx + 1}</span>
+                      <span className="text-xs text-white/50 mt-2 font-medium">
+                        Slide {idx + 1}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1004,7 +1156,11 @@ export default function EditorPage() {
             ) : (
               /* SINGLE SLIDE CANVAS (SpaceX style) */
               <div className="w-full max-w-4xl aspect-video bg-[#121314] rounded-2xl border border-white/[0.08] shadow-2xl relative overflow-hidden flex flex-col justify-center">
-                {renderSlideContent(activeSlide, getActiveBullets(activeSlide), true)}
+                {renderSlideContent(
+                  activeSlide,
+                  getActiveBullets(activeSlide),
+                  true,
+                )}
               </div>
             )}
           </div>
@@ -1019,14 +1175,16 @@ export default function EditorPage() {
                 size="sm"
                 className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
                 disabled={selectedSlideIndex === 0}
-                onPress={() => setSelectedSlideIndex(prev => prev - 1)}
+                onPress={() => setSelectedSlideIndex((prev) => prev - 1)}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
               {/* Slide Counter */}
               <span className="text-xs font-semibold text-white/90 select-none">
-                {selectedSlideIndex + 1} <span className="text-white/40 font-normal">of</span> {slides.length}
+                {selectedSlideIndex + 1}{" "}
+                <span className="text-white/40 font-normal">of</span>{" "}
+                {slides.length}
               </span>
 
               {/* Next Slide */}
@@ -1036,7 +1194,7 @@ export default function EditorPage() {
                 size="sm"
                 className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
                 disabled={selectedSlideIndex === slides.length - 1}
-                onPress={() => setSelectedSlideIndex(prev => prev + 1)}
+                onPress={() => setSelectedSlideIndex((prev) => prev + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -1045,7 +1203,9 @@ export default function EditorPage() {
 
               {/* Show All Grid Switch */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider select-none">Show all</span>
+                <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider select-none">
+                  Show all
+                </span>
                 <Switch
                   size="sm"
                   color="secondary"
@@ -1062,8 +1222,8 @@ export default function EditorPage() {
                 size="sm"
                 variant={isEditMode ? "solid" : "light"}
                 className={`h-7 px-3 text-xs font-semibold rounded-full min-w-0 ${
-                  isEditMode 
-                    ? "bg-[#7170FF] text-white shadow-md shadow-[#7170FF]/25" 
+                  isEditMode
+                    ? "bg-[#7170FF] text-white shadow-md shadow-[#7170FF]/25"
                     : "text-white hover:bg-white/10"
                 }`}
                 startContent={<Edit3 className="w-3.5 h-3.5" />}
@@ -1080,18 +1240,23 @@ export default function EditorPage() {
           <div className="w-80 bg-[#0A0B0C] border-l border-white/[0.06] flex flex-col shrink-0">
             {/* Slide Settings Section */}
             <div className="p-4 border-b border-white/[0.06] space-y-4 shrink-0">
-              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">Slide Settings</span>
-              
+              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">
+                Slide Settings
+              </span>
+
               {/* Slide title headline */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Slide Headline</label>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                  Slide Headline
+                </label>
                 <Input
                   size="sm"
                   variant="bordered"
                   className="text-white"
                   classNames={{
-                    inputWrapper: "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium"
+                    inputWrapper:
+                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
+                    input: "text-xs font-medium",
                   }}
                   value={activeSlide?.title || ""}
                   onChange={(e) => handleUpdateSlideTitle(e.target.value)}
@@ -1100,36 +1265,77 @@ export default function EditorPage() {
 
               {/* Slide layout selector */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Layout Template</label>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Layout Template
+                </label>
                 <Dropdown>
                   <DropdownTrigger>
-                    <Button 
-                      size="sm" 
-                      variant="bordered" 
+                    <Button
+                      size="sm"
+                      variant="bordered"
                       className="w-full justify-between border-white/10 hover:border-white/20 bg-white/[0.02] text-xs font-medium text-white/80"
                     >
-                      {activeSlide?.layout ? activeSlide.layout.replace("_", " ").toUpperCase() : "Select Layout"}
+                      {activeSlide?.layout
+                        ? activeSlide.layout.replace("_", " ").toUpperCase()
+                        : "Select Layout"}
                     </Button>
                   </DropdownTrigger>
-                  <DropdownMenu 
-                    aria-label="Slide layouts" 
+                  <DropdownMenu
+                    aria-label="Slide layouts"
                     className="bg-[#121314] border border-white/10 text-white"
                     onAction={(key) => handleUpdateSlideLayout(key as string)}
                   >
-                    <DropdownItem key="title" className="hover:bg-[#1A1B1C] text-white">Title Slide</DropdownItem>
-                    <DropdownItem key="content" className="hover:bg-[#1A1B1C] text-white">Content List</DropdownItem>
-                    <DropdownItem key="two_column" className="hover:bg-[#1A1B1C] text-white">Two Columns</DropdownItem>
-                    <DropdownItem key="data" className="hover:bg-[#1A1B1C] text-white">Data Metrics</DropdownItem>
-                    <DropdownItem key="chart" className="hover:bg-[#1A1B1C] text-white">Metrics + Chart</DropdownItem>
-                    <DropdownItem key="quote" className="hover:bg-[#1A1B1C] text-white">Quote Slide</DropdownItem>
-                    <DropdownItem key="closing" className="hover:bg-[#1A1B1C] text-white">Closing / CTA</DropdownItem>
+                    <DropdownItem
+                      key="title"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Title Slide
+                    </DropdownItem>
+                    <DropdownItem
+                      key="content"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Content List
+                    </DropdownItem>
+                    <DropdownItem
+                      key="two_column"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Two Columns
+                    </DropdownItem>
+                    <DropdownItem
+                      key="data"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Data Metrics
+                    </DropdownItem>
+                    <DropdownItem
+                      key="chart"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Metrics + Chart
+                    </DropdownItem>
+                    <DropdownItem
+                      key="quote"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Quote Slide
+                    </DropdownItem>
+                    <DropdownItem
+                      key="closing"
+                      className="hover:bg-[#1A1B1C] text-white"
+                    >
+                      Closing / CTA
+                    </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </div>
 
               {/* Bullets Points editor */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Slide Bullets</label>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Slide Bullets
+                </label>
                 <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
                   {getActiveBullets(activeSlide).map((bullet, idx) => (
                     <div key={idx} className="flex gap-1.5 items-center">
@@ -1138,8 +1344,9 @@ export default function EditorPage() {
                         variant="bordered"
                         className="flex-1"
                         classNames={{
-                          inputWrapper: "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.01] h-7 min-h-0 py-0",
-                          input: "text-[11px]"
+                          inputWrapper:
+                            "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.01] h-7 min-h-0 py-0",
+                          input: "text-[11px]",
                         }}
                         value={bullet}
                         onChange={(e) => {
@@ -1154,7 +1361,9 @@ export default function EditorPage() {
                         variant="light"
                         className="text-white/40 hover:text-danger hover:bg-white/5 h-7 w-7 min-w-0"
                         onPress={() => {
-                          const newBullets = getActiveBullets(activeSlide).filter((_, i) => i !== idx);
+                          const newBullets = getActiveBullets(
+                            activeSlide,
+                          ).filter((_, i) => i !== idx);
                           handleUpdateSlideBullets(newBullets);
                         }}
                       >
@@ -1169,7 +1378,10 @@ export default function EditorPage() {
                   className="w-full bg-white/5 text-white hover:bg-white/10 h-7 text-xs font-semibold"
                   startContent={<Plus className="w-3 h-3" />}
                   onPress={() => {
-                    const newBullets = [...getActiveBullets(activeSlide), "New key point"];
+                    const newBullets = [
+                      ...getActiveBullets(activeSlide),
+                      "New key point",
+                    ];
                     handleUpdateSlideBullets(newBullets);
                   }}
                 >
@@ -1179,7 +1391,9 @@ export default function EditorPage() {
 
               {/* Speaker notes */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Speaker Notes</label>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Speaker Notes
+                </label>
                 <Textarea
                   size="sm"
                   variant="bordered"
@@ -1187,11 +1401,14 @@ export default function EditorPage() {
                   minRows={1}
                   maxRows={3}
                   classNames={{
-                    inputWrapper: "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium"
+                    inputWrapper:
+                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
+                    input: "text-xs font-medium",
                   }}
                   value={activeSlide?.speakerNotes || ""}
-                  onChange={(e) => handleUpdateSlideSpeakerNotes(e.target.value)}
+                  onChange={(e) =>
+                    handleUpdateSlideSpeakerNotes(e.target.value)
+                  }
                 />
               </div>
 
@@ -1221,11 +1438,15 @@ export default function EditorPage() {
 
             {/* AI Copilot Section */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 border-t border-white/[0.06] scrollbar-thin">
-              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">AI Copilot</span>
+              <span className="text-xs font-semibold text-white/50 tracking-wider uppercase block">
+                AI Copilot
+              </span>
 
               {/* Ask AI to edit */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">Ask AI to edit</label>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  Ask AI to edit
+                </label>
                 <Textarea
                   value={aiEditPrompt}
                   onValueChange={setAiEditPrompt}
@@ -1235,8 +1456,9 @@ export default function EditorPage() {
                   maxRows={4}
                   disabled={isAiEditing}
                   classNames={{
-                    inputWrapper: "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
-                    input: "text-xs font-medium"
+                    inputWrapper:
+                      "border-white/10 hover:border-white/20 focus-within:!border-[#7170FF]/50 bg-white/[0.02]",
+                    input: "text-xs font-medium",
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1248,7 +1470,13 @@ export default function EditorPage() {
                 <Button
                   size="sm"
                   className="w-full bg-[#7170FF] text-white font-semibold text-xs h-8"
-                  startContent={isAiEditing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  startContent={
+                    isAiEditing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )
+                  }
                   onPress={handleAiEditSubmit}
                   isLoading={isAiEditing}
                   disabled={!aiEditPrompt.trim() || isAiEditing}
@@ -1261,43 +1489,93 @@ export default function EditorPage() {
 
               {/* Quick AI actions */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">AI Shortcuts</label>
-                
-                <Button 
-                  size="sm" 
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                  AI Shortcuts
+                </label>
+
+                <Button
+                  size="sm"
                   variant="bordered"
-                  className="w-full border-[#7170FF]/20 text-[#7170FF] hover:bg-[#7170FF]/5 font-semibold text-xs h-8 justify-start" 
-                  startContent={<Sparkles className="w-3.5 h-3.5" />} 
-                  onPress={handleRegenerate} 
-                  isLoading={regenerating} 
+                  className="w-full border-[#7170FF]/20 text-[#7170FF] hover:bg-[#7170FF]/5 font-semibold text-xs h-8 justify-start"
+                  startContent={<Sparkles className="w-3.5 h-3.5" />}
+                  onPress={handleRegenerate}
+                  isLoading={regenerating}
                 >
                   Regenerate Deck
                 </Button>
-                
+
                 <div className="flex gap-2">
                   <Dropdown>
                     <DropdownTrigger>
-                      <Button size="sm" variant="bordered" className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start" startContent={<Wand2 className="w-3.5 h-3.5" />}>
+                      <Button
+                        size="sm"
+                        variant="bordered"
+                        className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start"
+                        startContent={<Wand2 className="w-3.5 h-3.5" />}
+                      >
                         Change Tone
                       </Button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label="Change tone actions" className="bg-[#121314] border border-white/10 text-white" onAction={(key) => handleToneChange(key as string)}>
-                      <DropdownItem key="formal" className="hover:bg-[#1A1B1C] text-white">Formal</DropdownItem>
-                      <DropdownItem key="persuasive" className="hover:bg-[#1A1B1C] text-white">Persuasive</DropdownItem>
-                      <DropdownItem key="casual" className="hover:bg-[#1A1B1C] text-white">Casual</DropdownItem>
-                      <DropdownItem key="technical" className="hover:bg-[#1A1B1C] text-white">Technical</DropdownItem>
+                    <DropdownMenu
+                      aria-label="Change tone actions"
+                      className="bg-[#121314] border border-white/10 text-white"
+                      onAction={(key) => handleToneChange(key as string)}
+                    >
+                      <DropdownItem
+                        key="formal"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Formal
+                      </DropdownItem>
+                      <DropdownItem
+                        key="persuasive"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Persuasive
+                      </DropdownItem>
+                      <DropdownItem
+                        key="casual"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Casual
+                      </DropdownItem>
+                      <DropdownItem
+                        key="technical"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Technical
+                      </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
-                  
+
                   <Dropdown>
                     <DropdownTrigger>
-                      <Button size="sm" variant="bordered" className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start" startContent={<Type className="w-3.5 h-3.5" />}>
+                      <Button
+                        size="sm"
+                        variant="bordered"
+                        className="flex-1 border-white/10 text-white/80 hover:bg-white/5 text-[11px] h-8 justify-start"
+                        startContent={<Type className="w-3.5 h-3.5" />}
+                      >
                         Length
                       </Button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label="Expand or shorten actions" className="bg-[#121314] border border-white/10 text-white" onAction={(key) => handleLengthChange(key as string)}>
-                      <DropdownItem key="expand" className="hover:bg-[#1A1B1C] text-white">Expand</DropdownItem>
-                      <DropdownItem key="shorten" className="hover:bg-[#1A1B1C] text-white">Shorten</DropdownItem>
+                    <DropdownMenu
+                      aria-label="Expand or shorten actions"
+                      className="bg-[#121314] border border-white/10 text-white"
+                      onAction={(key) => handleLengthChange(key as string)}
+                    >
+                      <DropdownItem
+                        key="expand"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Expand
+                      </DropdownItem>
+                      <DropdownItem
+                        key="shorten"
+                        className="hover:bg-[#1A1B1C] text-white"
+                      >
+                        Shorten
+                      </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
                 </div>
@@ -1313,22 +1591,28 @@ export default function EditorPage() {
       {isFullscreen && slides.length > 0 && (
         <div className="fixed inset-0 z-50 bg-[#0F1011] flex flex-col justify-center items-center select-none cursor-none">
           <div className="w-[90vw] aspect-video bg-[#121314] rounded-2xl shadow-2xl relative border border-white/10 overflow-hidden flex flex-col justify-center">
-            {renderSlideContent(slides[selectedSlideIndex], getActiveBullets(slides[selectedSlideIndex]), false)}
+            {renderSlideContent(
+              slides[selectedSlideIndex],
+              getActiveBullets(slides[selectedSlideIndex]),
+              false,
+            )}
           </div>
 
           {/* Invisible click targets for fullscreen navigation */}
-          <div 
+          <div
             className="absolute left-0 top-0 bottom-0 w-1/4 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
-              if (selectedSlideIndex > 0) setSelectedSlideIndex(prev => prev - 1);
+              if (selectedSlideIndex > 0)
+                setSelectedSlideIndex((prev) => prev - 1);
             }}
           />
-          <div 
+          <div
             className="absolute right-0 top-0 bottom-0 w-1/4 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
-              if (selectedSlideIndex < slides.length - 1) setSelectedSlideIndex(prev => prev + 1);
+              if (selectedSlideIndex < slides.length - 1)
+                setSelectedSlideIndex((prev) => prev + 1);
             }}
           />
 
@@ -1340,12 +1624,13 @@ export default function EditorPage() {
               size="sm"
               className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
               disabled={selectedSlideIndex === 0}
-              onPress={() => setSelectedSlideIndex(prev => prev - 1)}
+              onPress={() => setSelectedSlideIndex((prev) => prev - 1)}
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <span className="text-xs font-semibold text-white select-none">
-              {selectedSlideIndex + 1} <span className="text-white/40">/</span> {slides.length}
+              {selectedSlideIndex + 1} <span className="text-white/40">/</span>{" "}
+              {slides.length}
             </span>
             <Button
               isIconOnly
@@ -1353,7 +1638,7 @@ export default function EditorPage() {
               size="sm"
               className="text-white hover:bg-white/10 rounded-full h-7 w-7 min-w-0"
               disabled={selectedSlideIndex === slides.length - 1}
-              onPress={() => setSelectedSlideIndex(prev => prev + 1)}
+              onPress={() => setSelectedSlideIndex((prev) => prev + 1)}
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -1367,6 +1652,134 @@ export default function EditorPage() {
             >
               Exit Show
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CANVAS CHATBOT ─────────────────────────────── */}
+      {/* Floating button */}
+      <button
+        onClick={() => setIsChatOpen((prev) => !prev)}
+        className={`fixed bottom-6 right-6 w-12 h-12 rounded-full flex items-center justify-center shadow-lg z-50 transition-all duration-200 ${
+          isChatOpen
+            ? "bg-surface-container border border-border text-primary"
+            : "bg-primary text-on-primary hover:opacity-90"
+        }`}
+      >
+        <span className="material-symbols-outlined text-[22px]">
+          {isChatOpen ? "close" : "chat"}
+        </span>
+      </button>
+
+      {/* Chat panel */}
+      {isChatOpen && (
+        <div
+          className="fixed bottom-20 right-6 w-80 bg-[#0d0e0f] border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
+          style={{ height: "420px" }}
+        >
+          {/* Panel header */}
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-surface-container-low/60 flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-[14px]">
+                smart_toy
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="font-label-md text-label-md text-primary font-semibold">
+                Slide Assistant
+              </p>
+              <p className="font-label-sm text-[10px] text-on-surface-variant">
+                {activeSlide
+                  ? `Slide: ${activeSlide.title.slice(0, 28)}${activeSlide.title.length > 28 ? "..." : ""}`
+                  : "No slide selected"}
+              </p>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+            {canvasChatMessages.length === 0 && (
+              <div className="text-center text-on-surface-variant py-6">
+                <span className="material-symbols-outlined text-[32px] block mb-2 opacity-30">
+                  forum
+                </span>
+                <p className="font-body-sm text-[12px]">
+                  Ask me to edit, improve,
+                  <br />
+                  or explain the current slide.
+                </p>
+              </div>
+            )}
+            {canvasChatMessages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex gap-1.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+              >
+                {msg.role === "assistant" && (
+                  <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span className="material-symbols-outlined text-primary text-[10px]">
+                      auto_awesome
+                    </span>
+                  </div>
+                )}
+                <div
+                  className={`max-w-[85%] rounded-xl px-3 py-2 text-[12px] leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-primary text-on-primary rounded-tr-sm"
+                      : "bg-surface-container text-on-surface rounded-tl-sm"
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {isChatLoading && (
+              <div className="flex gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-primary text-[10px]">
+                    auto_awesome
+                  </span>
+                </div>
+                <div className="bg-surface-container rounded-xl rounded-tl-sm px-3 py-2">
+                  <div className="flex gap-1">
+                    {[0, 150, 300].map((d) => (
+                      <div
+                        key={d}
+                        className="w-1 h-1 rounded-full bg-on-surface-variant animate-bounce"
+                        style={{ animationDelay: `${d}ms` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={canvasChatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-2.5 border-t border-border flex-shrink-0">
+            <div className="flex gap-1.5 bg-surface-container rounded-xl border border-border/40 px-3 py-2">
+              <input
+                type="text"
+                value={canvasChatInput}
+                onChange={(e) => setCanvasChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCanvasChat();
+                }}
+                placeholder="Make it more concise..."
+                disabled={isChatLoading}
+                className="flex-1 bg-transparent border-none outline-none text-[12px] text-primary placeholder:text-on-surface-variant/50 min-w-0"
+              />
+              <button
+                onClick={handleCanvasChat}
+                disabled={!canvasChatInput.trim() || isChatLoading}
+                className="w-6 h-6 rounded-full bg-primary flex items-center justify-center disabled:opacity-30 flex-shrink-0"
+              >
+                <span className="material-symbols-outlined text-on-primary text-[13px]">
+                  send
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

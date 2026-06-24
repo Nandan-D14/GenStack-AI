@@ -168,14 +168,82 @@ export const generateOutline = mutation({
 
     // Insert mock slides simulating AI generation
     const mockSlides = [
-      { title: "The Future of Fashion is AI", layout: "title", bullets: [], visualSuggestion: "none", speakerNotes: "Welcome the audience." },
-      { title: "The Problem", layout: "content", bullets: ["67% of people say they have \"nothing to wear\" despite a full closet", "Average person spends 17 minutes deciding what to wear each morning", "Returns cost retailers $550B annually — 40% driven by poor fit"], visualSuggestion: "icon", speakerNotes: "Describe the problem in detail." },
-      { title: "The Solution", layout: "content", bullets: ["Our approach: personal AI stylist", "How it works: photo analysis + wardrobe sync", "Key benefits: 90% return drop, save hours"], visualSuggestion: "diagram", speakerNotes: "Present the solution clearly." },
-      { title: "Market Opportunity", layout: "data", bullets: ["$890B global fashion market", "40% e-commerce return rate", "$550B return costs"], visualSuggestion: "chart", speakerNotes: "Show the market size and growth." },
-      { title: "Business Model", layout: "content", bullets: ["Subscription model", "B2B partnership", "Affiliate commission"], visualSuggestion: "none", speakerNotes: "Explain how you make money." },
-      { title: "Traction & Metrics", layout: "chart", bullets: ["500K users", "34% MoM growth", "89% retention"], visualSuggestion: "chart", speakerNotes: "Show real numbers and traction." },
-      { title: "Team", layout: "content", bullets: ["AI Ph.D founders", "Ex-Stitch Fix lead designers", "Advisor from Sequoia"], visualSuggestion: "none", speakerNotes: "Introduce the team." },
-      { title: "The Ask: $2M Seed", layout: "closing", bullets: ["$2M raise", "18mo runway", "$10M Series A target"], visualSuggestion: "none", speakerNotes: "Make the ask and close strong." },
+      {
+        title: "The Future of Fashion is AI",
+        layout: "title",
+        bullets: [],
+        visualSuggestion: "none",
+        speakerNotes: "Welcome the audience.",
+      },
+      {
+        title: "The Problem",
+        layout: "content",
+        bullets: [
+          '67% of people say they have "nothing to wear" despite a full closet',
+          "Average person spends 17 minutes deciding what to wear each morning",
+          "Returns cost retailers $550B annually — 40% driven by poor fit",
+        ],
+        visualSuggestion: "icon",
+        speakerNotes: "Describe the problem in detail.",
+      },
+      {
+        title: "The Solution",
+        layout: "content",
+        bullets: [
+          "Our approach: personal AI stylist",
+          "How it works: photo analysis + wardrobe sync",
+          "Key benefits: 90% return drop, save hours",
+        ],
+        visualSuggestion: "diagram",
+        speakerNotes: "Present the solution clearly.",
+      },
+      {
+        title: "Market Opportunity",
+        layout: "data",
+        bullets: [
+          "$890B global fashion market",
+          "40% e-commerce return rate",
+          "$550B return costs",
+        ],
+        visualSuggestion: "chart",
+        speakerNotes: "Show the market size and growth.",
+      },
+      {
+        title: "Business Model",
+        layout: "content",
+        bullets: [
+          "Subscription model",
+          "B2B partnership",
+          "Affiliate commission",
+        ],
+        visualSuggestion: "none",
+        speakerNotes: "Explain how you make money.",
+      },
+      {
+        title: "Traction & Metrics",
+        layout: "chart",
+        bullets: ["500K users", "34% MoM growth", "89% retention"],
+        visualSuggestion: "chart",
+        speakerNotes: "Show real numbers and traction.",
+      },
+      {
+        title: "Team",
+        layout: "content",
+        bullets: [
+          "AI Ph.D founders",
+          "Ex-Stitch Fix lead designers",
+          "Advisor from Sequoia",
+        ],
+        visualSuggestion: "none",
+        speakerNotes: "Introduce the team.",
+      },
+      {
+        title: "The Ask: $2M Seed",
+        layout: "closing",
+        bullets: ["$2M raise", "18mo runway", "$10M Series A target"],
+        visualSuggestion: "none",
+        speakerNotes: "Make the ask and close strong.",
+      },
     ];
 
     const now = new Date().toISOString();
@@ -223,7 +291,7 @@ export const exportDeck = mutation({
     const base64 = mockBuffer.toString("base64");
 
     return {
-      downloadUrl: `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`
+      downloadUrl: `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`,
     };
   },
 });
@@ -246,6 +314,27 @@ export const getDeckForExport = internalQuery({
     slides.sort((a, b) => a.order - b.order);
 
     return { ...deck, slides };
+  },
+});
+
+// Update plan items and status for a deck
+export const updatePlan = mutation({
+  args: {
+    id: v.id("decks"),
+    planItems: v.string(), // JSON string
+    planStatus: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      planItems: args.planItems,
+      ...(args.planStatus !== undefined ? { planStatus: args.planStatus } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
   },
 });
 
@@ -276,5 +365,3 @@ export const updateC1Data = mutation({
     return { success: true };
   },
 });
-
-
