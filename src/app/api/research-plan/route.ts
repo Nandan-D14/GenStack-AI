@@ -17,7 +17,7 @@ function generateFallbackPlan(prompt: string, slidesCount: number): PlanItem[] {
     { id: "item-1", order: 1, title: `The Challenge of ${cleanTitle}`, layout: "content", description: `Identify the main pain points, market challenges, or theoretical problems concerning ${cleanTitle}` },
     { id: "item-2", order: 2, title: "Key Mechanisms", layout: "two_column", description: `Break down the core components, workflows, or pillars supporting ${cleanTitle}` },
     { id: "item-3", order: 3, title: `Data & Metrics on ${cleanTitle}`, layout: "data", description: `Examine the statistical evidence, growth trends, and quantitative impact of ${cleanTitle}` },
-    { id: "item-4", order: 4, title: "Comparative Analysis", layout: "comparison", description: `Compare traditional practices with optimized strategies under ${cleanTitle}` },
+    { id: "item-4", order: 4, title: "Comparative Analysis", layout: "two_column", description: `Compare traditional practices with optimized strategies under ${cleanTitle}` },
     { id: "item-5", order: 5, title: "Performance Trajectory", layout: "chart", description: "Visualize the phase-wise development or historical growth chart" },
     { id: "item-6", order: 6, title: "Strategic Roadmap", layout: "content", description: `Detail the concrete next steps and implementation phases for ${cleanTitle}` },
     { id: "item-7", order: 7, title: "Next Steps & Action Plan", layout: "closing", description: "Summarize call-to-actions, opening up for Q&A on this roadmap" },
