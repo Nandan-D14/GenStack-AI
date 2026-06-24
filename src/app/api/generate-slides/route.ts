@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     });
 
     const response = await client.chat.completions.create({
-      model: "MiniMax-M3",
+      model: "minimax-m3",
       messages: [
         {
           role: "system",
