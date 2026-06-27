@@ -38,6 +38,7 @@ export default defineSchema({
     planItems: v.optional(v.string()), // JSON string of PlanItem[]
     planStatus: v.optional(v.string()), // "planning" | "approved" | "generating" | "done"
     generationMode: v.optional(v.string()), // "custom" | "template"
+    chatHistory: v.optional(v.string()), // JSON string of ChatMessage[]
     createdAt: v.string(),
     updatedAt: v.string(),
   }).index("by_userId", ["userId"]),

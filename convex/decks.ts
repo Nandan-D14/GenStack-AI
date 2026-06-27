@@ -324,6 +324,7 @@ export const updatePlan = mutation({
     planItems: v.string(), // JSON string
     planStatus: v.optional(v.string()),
     generationMode: v.optional(v.string()),
+    chatHistory: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const deck = await ctx.db.get(args.id);
@@ -336,6 +337,26 @@ export const updatePlan = mutation({
       ...(args.generationMode !== undefined
         ? { generationMode: args.generationMode }
         : {}),
+      ...(args.chatHistory !== undefined ? { chatHistory: args.chatHistory } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  },
+});
+
+// Update chat history for a deck
+export const updateChatHistory = mutation({
+  args: {
+    id: v.id("decks"),
+    chatHistory: v.string(), // JSON string
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      chatHistory: args.chatHistory,
       updatedAt: new Date().toISOString(),
     });
     return { success: true };

@@ -73,6 +73,7 @@ export default function PlanPage() {
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
   const runUpdatePlan = useMutation(api.decks.updatePlan);
+  const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
   const runReplaceAllSlides = useMutation(api.slides.replaceAllSlides);
 
   useEffect(() => {
@@ -88,25 +89,44 @@ export default function PlanPage() {
       (deck as any).generationMode === "template" ? "template" : "custom",
     );
 
+    let loadedPlan = false;
     if (deck.planItems) {
       try {
         const saved = JSON.parse(deck.planItems as string);
         if (Array.isArray(saved) && saved.length > 0) {
           setPlanItems(saved);
           setPhase("planning");
-          addMsg(
-            "assistant",
-            "I've loaded your saved plan. You can edit any slide, chat to refine, or approve when ready.",
-          );
+          loadedPlan = true;
+        }
+      } catch {}
+    }
+
+    if (deck.chatHistory) {
+      try {
+        const savedChat = JSON.parse(deck.chatHistory as string);
+        if (Array.isArray(savedChat) && savedChat.length > 0) {
+          setChatMessages(savedChat);
           return;
         }
       } catch {}
     }
-    startResearch();
+
+    if (loadedPlan) {
+      addMsg(
+        "assistant",
+        "I've loaded your saved plan. You can edit any slide, chat to refine, or approve when ready.",
+      );
+    } else {
+      startResearch();
+    }
   }, [deck]);
 
   const addMsg = (role: "user" | "assistant", content: string) => {
-    setChatMessages((prev) => [...prev, { role, content }]);
+    setChatMessages((prev) => {
+      const next = [...prev, { role, content }];
+      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(next) }).catch(console.error);
+      return next;
+    });
   };
 
   const startResearch = async () => {

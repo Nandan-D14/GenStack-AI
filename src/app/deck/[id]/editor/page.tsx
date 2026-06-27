@@ -105,9 +105,27 @@ export default function EditorPage() {
   const runDuplicateSlide = useMutation(api.slides.duplicateSlide);
   const runUpdateSlideOrders = useMutation(api.slides.updateSlideOrders);
   const runUpdateC1Data = useMutation(api.decks.updateC1Data);
+  const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
 
   // Convex action for PPTX generation
   const runGeneratePptx = useAction(api.export.generatePptx);
+
+  // Load chat history from deck
+  const [hasLoadedChat, setHasLoadedChat] = useState(false);
+  useEffect(() => {
+    if (!deck || hasLoadedChat) return;
+    if (deck.chatHistory) {
+      try {
+        const savedChat = JSON.parse(deck.chatHistory);
+        if (Array.isArray(savedChat)) {
+          setCanvasChatMessages(savedChat);
+        }
+      } catch (err) {
+        console.error("Failed to parse chat history:", err);
+      }
+    }
+    setHasLoadedChat(true);
+  }, [deck, hasLoadedChat]);
 
   // Ensure selected slide is within bounds
   useEffect(() => {
@@ -537,7 +555,11 @@ export default function EditorPage() {
     const msg = canvasChatInput.trim();
     if (!msg || isChatLoading) return;
     setCanvasChatInput("");
-    setCanvasChatMessages((prev) => [...prev, { role: "user", content: msg }]);
+    
+    const nextMessages = [...canvasChatMessages, { role: "user" as const, content: msg }];
+    setCanvasChatMessages(nextMessages);
+    runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(nextMessages) }).catch(console.error);
+    
     setIsChatLoading(true);
 
     try {
@@ -559,7 +581,7 @@ export default function EditorPage() {
             layout: s.layout,
           })),
           deckTitle: deck?.title || "",
-          history: canvasChatMessages.slice(-6),
+          history: nextMessages.slice(-6),
         }),
       });
 
@@ -567,10 +589,13 @@ export default function EditorPage() {
       const reply =
         data.reply ||
         "I can help with that. What specifically would you like to change?";
-      setCanvasChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: reply },
-      ]);
+      
+      const finalMessages = [
+        ...nextMessages,
+        { role: "assistant" as const, content: reply },
+      ];
+      setCanvasChatMessages(finalMessages);
+      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
 
       // Apply slide update if returned
       if (data.slideUpdate && activeSlide) {
@@ -587,13 +612,15 @@ export default function EditorPage() {
         }
       }
     } catch {
-      setCanvasChatMessages((prev) => [
-        ...prev,
+      const finalMessages = [
+        ...nextMessages,
         {
-          role: "assistant",
+          role: "assistant" as const,
           content: "Sorry, couldn't process that. Try again.",
         },
-      ]);
+      ];
+      setCanvasChatMessages(finalMessages);
+      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
     } finally {
       setIsChatLoading(false);
     }
