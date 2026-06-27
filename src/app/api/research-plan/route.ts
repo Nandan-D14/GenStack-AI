@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const client = new OpenAI({
       baseURL: "https://llm.kimchi.dev/openai/v1",
-      apiKey: process.env['CASTAI_API_KEY'],
+      apiKey: process.env['CASTAI_API_KEY'] || process.env['TOKENROUTER_API_KEY'] || "",
     });
 
     const isRefinement = chatHistory && chatHistory.length > 0 && currentPlan;

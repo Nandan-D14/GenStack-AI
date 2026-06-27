@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     console.log("Generating slides JSON via minimax-m3...");
     const client = new OpenAI({
       baseURL: "https://llm.kimchi.dev/openai/v1",
-      apiKey: process.env['CASTAI_API_KEY'],
+      apiKey: process.env['CASTAI_API_KEY'] || process.env['TOKENROUTER_API_KEY'] || "",
     });
 
     let slidesJson: any[];

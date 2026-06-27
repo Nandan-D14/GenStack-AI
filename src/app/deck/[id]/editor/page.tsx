@@ -40,6 +40,7 @@ import {
   ZoomOut,
   Maximize,
   GripVertical,
+  FileText,
 } from "lucide-react";
 import { C1Component } from "@thesysai/genui-sdk";
 import Link from "next/link";
@@ -56,7 +57,7 @@ export default function EditorPage() {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
 
   // UI state toggles
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
@@ -80,6 +81,17 @@ export default function EditorPage() {
 
   // Export states
   const [isExporting, setIsExporting] = useState(false);
+
+  // Custom states for in-slide editing & right-click
+  const [showSpeakerNotes, setShowSpeakerNotes] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideIndex: number } | null>(null);
+
+  // Close context menu on window click
+  useEffect(() => {
+    const handleCloseContextMenu = () => setContextMenu(null);
+    window.addEventListener("click", handleCloseContextMenu);
+    return () => window.removeEventListener("click", handleCloseContextMenu);
+  }, []);
 
   // Convex Queries and Mutations
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
@@ -568,6 +580,8 @@ export default function EditorPage() {
           update.content = JSON.stringify(data.slideUpdate.bullets);
         if (data.slideUpdate.speakerNotes)
           update.speakerNotes = data.slideUpdate.speakerNotes;
+        if (data.slideUpdate.layout)
+          update.layout = data.slideUpdate.layout;
         if (Object.keys(update).length > 0) {
           await runUpdateSlideContent({ id: activeSlide._id, ...update });
         }
@@ -600,6 +614,51 @@ export default function EditorPage() {
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
+    }
+  };
+
+  // Keyboard helper for in-slide bullet list navigation/editing
+  const handleBulletKeyDown = (
+    e: React.KeyboardEvent<HTMLElement>,
+    idx: number,
+    bullets: string[],
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const newBullets = [...bullets];
+      newBullets.splice(idx + 1, 0, "");
+      handleUpdateSlideBullets(newBullets);
+      setTimeout(() => {
+        const nextEl = document.querySelector(`[data-bullet-idx="${idx + 1}"]`) as HTMLElement;
+        if (nextEl) {
+          nextEl.focus();
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(nextEl);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }, 80);
+    } else if (e.key === "Backspace" && e.currentTarget.innerText.trim() === "") {
+      e.preventDefault();
+      const newBullets = bullets.filter((_, i) => i !== idx);
+      handleUpdateSlideBullets(newBullets);
+      setTimeout(() => {
+        const prevEl = document.querySelector(`[data-bullet-idx="${idx - 1}"]`) as HTMLElement;
+        if (prevEl) {
+          prevEl.focus();
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(prevEl);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        } else {
+          const titleEl = document.querySelector(`[data-slide-title="true"]`) as HTMLElement;
+          titleEl?.focus();
+        }
+      }, 80);
     }
   };
 
@@ -735,6 +794,7 @@ export default function EditorPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(113,112,255,0.06)_0%,transparent_70%)] pointer-events-none" />
             <div className="relative z-10 space-y-6 max-w-3xl">
               <h1
+                data-slide-title="true"
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
                 onBlur={(e) =>
@@ -760,6 +820,7 @@ export default function EditorPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(113,112,255,0.08)_0%,transparent_75%)] pointer-events-none" />
             <div className="relative z-10 space-y-8 max-w-3xl">
               <h1
+                data-slide-title="true"
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
                 onBlur={(e) =>
@@ -775,8 +836,10 @@ export default function EditorPage() {
                   {bullets.map((bullet, idx) => (
                     <span
                       key={idx}
+                      data-bullet-idx={idx}
                       contentEditable={isInteractive && isEditMode}
                       suppressContentEditableWarning
+                      onKeyDown={(e) => handleBulletKeyDown(e, idx, bullets)}
                       onBlur={(e) => {
                         const newBullets = [...bullets];
                         newBullets[idx] = e.currentTarget.innerText;
@@ -801,6 +864,7 @@ export default function EditorPage() {
                 “
               </span>
               <blockquote
+                data-slide-title="true"
                 contentEditable={isInteractive && isEditMode}
                 suppressContentEditableWarning
                 onBlur={(e) =>
@@ -816,8 +880,10 @@ export default function EditorPage() {
                   {bullets.map((bullet, idx) => (
                     <cite
                       key={idx}
+                      data-bullet-idx={idx}
                       contentEditable={isInteractive && isEditMode}
                       suppressContentEditableWarning
+                      onKeyDown={(e) => handleBulletKeyDown(e, idx, bullets)}
                       onBlur={(e) => {
                         const newBullets = [...bullets];
                         newBullets[idx] = e.currentTarget.innerText;
@@ -838,6 +904,7 @@ export default function EditorPage() {
         return (
           <div className="w-full h-full flex flex-col justify-between px-10 py-8 bg-[#121314]">
             <h2
+              data-slide-title="true"
               contentEditable={isInteractive && isEditMode}
               suppressContentEditableWarning
               onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
@@ -908,6 +975,7 @@ export default function EditorPage() {
         return (
           <div className="w-full h-full flex flex-col justify-between px-10 py-8 bg-[#121314]">
             <h2
+              data-slide-title="true"
               contentEditable={isInteractive && isEditMode}
               suppressContentEditableWarning
               onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
@@ -922,8 +990,10 @@ export default function EditorPage() {
                   {bullets.map((bullet, idx) => (
                     <li
                       key={idx}
+                      data-bullet-idx={idx}
                       contentEditable={isInteractive && isEditMode}
                       suppressContentEditableWarning
+                      onKeyDown={(e) => handleBulletKeyDown(e, idx, bullets)}
                       onBlur={(e) => {
                         const newBullets = [...bullets];
                         newBullets[idx] = e.currentTarget.innerText;
@@ -970,6 +1040,7 @@ export default function EditorPage() {
         return (
           <div className="w-full h-full flex flex-col justify-between px-10 py-8 bg-[#121314]">
             <h2
+              data-slide-title="true"
               contentEditable={isInteractive && isEditMode}
               suppressContentEditableWarning
               onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
@@ -983,8 +1054,10 @@ export default function EditorPage() {
                   {col1.map((bullet, idx) => (
                     <li
                       key={idx}
+                      data-bullet-idx={idx}
                       contentEditable={isInteractive && isEditMode}
                       suppressContentEditableWarning
+                      onKeyDown={(e) => handleBulletKeyDown(e, idx, bullets)}
                       onBlur={(e) => {
                         const newBullets = [...bullets];
                         newBullets[idx] = e.currentTarget.innerText;
@@ -1004,8 +1077,10 @@ export default function EditorPage() {
                     return (
                       <li
                         key={idx}
+                        data-bullet-idx={actualIdx}
                         contentEditable={isInteractive && isEditMode}
                         suppressContentEditableWarning
+                        onKeyDown={(e) => handleBulletKeyDown(e, actualIdx, bullets)}
                         onBlur={(e) => {
                           const newBullets = [...bullets];
                           newBullets[actualIdx] = e.currentTarget.innerText;
@@ -1027,6 +1102,7 @@ export default function EditorPage() {
         return (
           <div className="w-full h-full flex flex-col justify-between px-10 py-8 bg-[#121314]">
             <h2
+              data-slide-title="true"
               contentEditable={isInteractive && isEditMode}
               suppressContentEditableWarning
               onBlur={(e) => handleUpdateSlideTitle(e.currentTarget.innerText)}
@@ -1040,8 +1116,10 @@ export default function EditorPage() {
                   {bullets.map((bullet, idx) => (
                     <li
                       key={idx}
+                      data-bullet-idx={idx}
                       contentEditable={isInteractive && isEditMode}
                       suppressContentEditableWarning
+                      onKeyDown={(e) => handleBulletKeyDown(e, idx, bullets)}
                       onBlur={(e) => {
                         const newBullets = [...bullets];
                         newBullets[idx] = e.currentTarget.innerText;
@@ -1173,6 +1251,14 @@ export default function EditorPage() {
                       onDrop={(e) => {
                         e.preventDefault();
                         handleSlideDrop(idx);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          slideIndex: idx,
+                        });
                       }}
                     >
                       <div className="w-full flex items-center gap-2 relative group/slide">
@@ -1342,6 +1428,14 @@ export default function EditorPage() {
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                   willChange: "transform",
                 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    slideIndex: selectedSlideIndex,
+                  });
+                }}
               >
                 {renderCanvasSlide(
                   activeSlide,
@@ -1350,17 +1444,53 @@ export default function EditorPage() {
                 )}
               </div>
             )}
+
+            {/* SPEAKER NOTES COLLAPSIBLE PANEL */}
+            {showSpeakerNotes && activeSlide && !showAll && (
+              <div className="w-full max-w-[960px] mt-4 bg-[#121214] border border-zinc-800/80 rounded-xl p-4 z-10 animate-in slide-in-from-bottom duration-150 shadow-lg pointer-events-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-zinc-400" />
+                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                      Speaker Notes (Slide {selectedSlideIndex + 1})
+                    </span>
+                  </div>
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    size="sm"
+                    className="text-zinc-500 hover:text-zinc-200 h-6 w-6 min-w-0"
+                    onPress={() => setShowSpeakerNotes(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <Textarea
+                  size="sm"
+                  variant="bordered"
+                  placeholder="Write notes to guide your presentation here..."
+                  minRows={2}
+                  maxRows={4}
+                  classNames={{
+                    inputWrapper: "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-[#09090b] transition-colors rounded-lg",
+                    input: "text-[12px] font-medium text-zinc-200 placeholder:text-zinc-500 leading-relaxed",
+                  }}
+                  value={activeSlide?.speakerNotes || ""}
+                  onChange={(e) => handleUpdateSlideSpeakerNotes(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* BOTTOM CONTROLS PILL BAR */}
           {slides.length > 0 && !showAll && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#18181b] border border-zinc-800 px-4 py-2 rounded-lg flex items-center gap-4 text-zinc-100 shadow-lg z-20">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#18181b]/95 backdrop-blur-md border border-zinc-800 px-5 py-2.5 rounded-xl flex items-center gap-4 text-zinc-100 shadow-2xl z-20 select-none">
               {/* Previous Slide */}
               <Button
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md h-7 w-7 min-w-0 transition-colors"
+                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg h-8 w-8 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === 0}
                 onPress={() => setSelectedSlideIndex((prev) => prev - 1)}
               >
@@ -1368,9 +1498,9 @@ export default function EditorPage() {
               </Button>
 
               {/* Slide Counter */}
-              <span className="text-[12px] font-medium text-zinc-100 select-none min-w-[40px] text-center">
+              <span className="text-[12px] font-semibold text-zinc-200 select-none min-w-[40px] text-center">
                 {selectedSlideIndex + 1}{" "}
-                <span className="text-zinc-500 mx-0.5">/</span> {slides.length}
+                <span className="text-zinc-600 mx-0.5">/</span> {slides.length}
               </span>
 
               {/* Next Slide */}
@@ -1378,18 +1508,139 @@ export default function EditorPage() {
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md h-7 w-7 min-w-0 transition-colors"
+                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg h-8 w-8 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === slides.length - 1}
                 onPress={() => setSelectedSlideIndex((prev) => prev + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
 
-              <Divider orientation="vertical" className="bg-zinc-800 h-4" />
+              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
 
-              {/* Show All Grid Switch */}
+              {/* Layout Dropdown Trigger */}
+              <Dropdown
+                classNames={{
+                  content: "bg-zinc-900 border border-zinc-800 min-w-[180px] rounded-lg shadow-xl",
+                }}
+              >
+                <DropdownTrigger>
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 h-8 px-3 text-[11px] font-medium rounded-lg transition-colors"
+                    startContent={<LayoutGrid className="w-3.5 h-3.5" />}
+                  >
+                    Layout: {activeSlide?.layout ? activeSlide.layout.replace("_", " ").toUpperCase() : "SELECT"}
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu
+                  aria-label="Slide layouts"
+                  itemClasses={{
+                    base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-1.5 px-3 rounded-lg text-xs",
+                  }}
+                  onAction={(key) => handleUpdateSlideLayout(key as string)}
+                >
+                  <DropdownItem key="title">Title Slide</DropdownItem>
+                  <DropdownItem key="content">Content List</DropdownItem>
+                  <DropdownItem key="two_column">Two Columns</DropdownItem>
+                  <DropdownItem key="data">Data Metrics</DropdownItem>
+                  <DropdownItem key="chart">Metrics + Chart</DropdownItem>
+                  <DropdownItem key="quote">Quote Slide</DropdownItem>
+                  <DropdownItem key="closing">Closing / CTA</DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+
+              {/* Speaker Notes Toggle Button */}
+              <Button
+                size="sm"
+                variant="flat"
+                className={`h-8 px-3 text-[11px] font-medium rounded-lg transition-all ${
+                  showSpeakerNotes
+                    ? "bg-[#7170FF] text-white"
+                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                }`}
+                startContent={<FileText className="w-3.5 h-3.5" />}
+                onPress={() => setShowSpeakerNotes(!showSpeakerNotes)}
+              >
+                Notes
+              </Button>
+
+              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+
+              {/* Quick Operations (Duplicate/Delete) */}
+              <div className="flex items-center gap-1">
+                <Tooltip content="Duplicate Slide" classNames={{ base: "text-[10px]" }}>
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 h-8 w-8 min-w-0 rounded-lg transition-colors"
+                    onPress={handleDuplicateSlide}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
+                </Tooltip>
+                <Tooltip content="Delete Slide" classNames={{ base: "text-[10px]" }}>
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    className="text-zinc-400 hover:text-red-400 hover:bg-zinc-800 h-8 w-8 min-w-0 rounded-lg transition-colors"
+                    disabled={slides.length <= 1}
+                    onPress={handleDeleteSlide}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </Tooltip>
+              </div>
+
+              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+
+              {/* AI Tools Dropdown */}
+              <Dropdown
+                classNames={{
+                  content: "bg-zinc-900 border border-zinc-800 min-w-[160px] rounded-lg shadow-xl",
+                }}
+              >
+                <DropdownTrigger>
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    className="bg-[#7170FF]/15 text-[#A9A8FF] border border-[#7170FF]/25 hover:bg-[#7170FF]/25 h-8 px-3 text-[11px] font-semibold rounded-lg transition-colors"
+                    startContent={<Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    AI Edit
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu
+                  aria-label="AI Shortcuts"
+                  itemClasses={{
+                    base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-1.5 px-3 rounded-lg text-xs",
+                  }}
+                >
+                  <DropdownItem key="regen" startContent={<Wand2 className="w-3.5 h-3.5" />} onPress={handleRegenerate}>
+                    Regenerate Deck
+                  </DropdownItem>
+                  <DropdownItem key="tone_formal" onPress={() => handleToneChange("formal")}>
+                    Tone: Formal
+                  </DropdownItem>
+                  <DropdownItem key="tone_casual" onPress={() => handleToneChange("casual")}>
+                    Tone: Casual
+                  </DropdownItem>
+                  <DropdownItem key="len_expand" onPress={() => handleLengthChange("expand")}>
+                    Length: Expand
+                  </DropdownItem>
+                  <DropdownItem key="len_shorten" onPress={() => handleLengthChange("shorten")}>
+                    Length: Shorten
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+
+              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+
+              {/* Grid view switcher */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider select-none">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider select-none">
                   Grid
                 </span>
                 <Switch
@@ -1403,334 +1654,122 @@ export default function EditorPage() {
                   onValueChange={setShowAll}
                 />
               </div>
-
-              <Divider orientation="vertical" className="bg-zinc-800 h-4" />
-
-              {/* Edit Mode Toggle */}
-              <Button
-                size="sm"
-                variant="flat"
-                className={`h-7 px-3 text-[11px] font-medium rounded-md min-w-0 transition-all ${
-                  isEditMode
-                    ? "bg-blue-500 text-white"
-                    : "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                }`}
-                startContent={<Edit3 className="w-3.5 h-3.5" />}
-                onPress={() => setIsEditMode(!isEditMode)}
-              >
-                {isEditMode ? "Editing" : "Edit"}
-              </Button>
             </div>
           )}
         </div>
-
-        {/* RIGHT SIDEBAR: AI Copilot & Slide Settings */}
-        {slides.length > 0 && (
-          <div className="w-[320px] bg-[#18181b] border-l border-zinc-800 flex flex-col shrink-0">
-            {/* Slide Settings Section */}
-            <div className="p-5 border-b border-zinc-800 space-y-5 shrink-0">
-              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block">
-                Slide Settings
-              </span>
-
-              {/* Slide title headline */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                  Slide Headline
-                </label>
-                <Input
-                  size="sm"
-                  variant="bordered"
-                  className="text-zinc-100"
-                  classNames={{
-                    inputWrapper:
-                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 shadow-sm transition-colors rounded-md h-9",
-                    input: "text-[12px] font-medium placeholder:text-zinc-500",
-                  }}
-                  value={activeSlide?.title || ""}
-                  onChange={(e) => handleUpdateSlideTitle(e.target.value)}
-                />
-              </div>
-
-              {/* Slide layout selector */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                  Layout Template
-                </label>
-                <Dropdown
-                  classNames={{
-                    content:
-                      "bg-zinc-900 border border-zinc-800 min-w-[200px] rounded-md",
-                  }}
-                >
-                  <DropdownTrigger>
-                    <Button
-                      size="sm"
-                      variant="bordered"
-                      className="w-full justify-between border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-[12px] font-medium text-zinc-100 transition-colors rounded-md h-9"
-                    >
-                      {activeSlide?.layout
-                        ? activeSlide.layout.replace("_", " ").toUpperCase()
-                        : "Select Layout"}
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Slide layouts"
-                    itemClasses={{
-                      base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
-                    }}
-                    onAction={(key) => handleUpdateSlideLayout(key as string)}
-                  >
-                    <DropdownItem key="title">Title Slide</DropdownItem>
-                    <DropdownItem key="content">Content List</DropdownItem>
-                    <DropdownItem key="two_column">Two Columns</DropdownItem>
-                    <DropdownItem key="data">Data Metrics</DropdownItem>
-                    <DropdownItem key="chart">Metrics + Chart</DropdownItem>
-                    <DropdownItem key="quote">Quote Slide</DropdownItem>
-                    <DropdownItem key="closing">Closing / CTA</DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
-              </div>
-
-              {/* Bullets Points editor */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                  Slide Bullets
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
-                  {getActiveBullets(activeSlide).map((bullet, idx) => (
-                    <div key={idx} className="flex gap-2 items-center">
-                      <Input
-                        size="sm"
-                        variant="bordered"
-                        className="flex-1"
-                        classNames={{
-                          inputWrapper:
-                            "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors min-h-[32px] h-[32px] rounded-md",
-                          input: "text-[12px] text-zinc-100",
-                        }}
-                        value={bullet}
-                        onChange={(e) => {
-                          const newBullets = getActiveBullets(activeSlide);
-                          newBullets[idx] = e.target.value;
-                          handleUpdateSlideBullets(newBullets);
-                        }}
-                      />
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800 h-8 w-8 min-w-0 transition-colors rounded-md"
-                        onPress={() => {
-                          const newBullets = getActiveBullets(
-                            activeSlide,
-                          ).filter((_, i) => i !== idx);
-                          handleUpdateSlideBullets(newBullets);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  className="w-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 h-8 text-[12px] font-medium transition-colors mt-2 rounded-md"
-                  startContent={<Plus className="w-3.5 h-3.5" />}
-                  onPress={() => {
-                    const newBullets = [
-                      ...getActiveBullets(activeSlide),
-                      "New key point",
-                    ];
-                    handleUpdateSlideBullets(newBullets);
-                  }}
-                >
-                  Add Bullet Point
-                </Button>
-              </div>
-
-              {/* Speaker notes */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                  Speaker Notes
-                </label>
-                <Textarea
-                  size="sm"
-                  variant="bordered"
-                  placeholder="Notes visible during presentation..."
-                  minRows={2}
-                  maxRows={4}
-                  classNames={{
-                    inputWrapper:
-                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
-                    input:
-                      "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
-                  }}
-                  value={activeSlide?.speakerNotes || ""}
-                  onChange={(e) =>
-                    handleUpdateSlideSpeakerNotes(e.target.value)
-                  }
-                />
-              </div>
-
-              {/* Manual operations row */}
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-zinc-800/50">
-                <Button
-                  size="sm"
-                  variant="bordered"
-                  className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 text-[12px] h-9 font-medium transition-colors rounded-md"
-                  startContent={<Copy className="w-3.5 h-3.5" />}
-                  onPress={handleDuplicateSlide}
-                >
-                  Duplicate
-                </Button>
-                <Button
-                  size="sm"
-                  variant="bordered"
-                  className="border-zinc-800 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 text-[12px] h-9 font-medium transition-colors hover:border-red-500/30 rounded-md"
-                  startContent={<Trash2 className="w-3.5 h-3.5" />}
-                  disabled={slides.length <= 1}
-                  onPress={handleDeleteSlide}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-
-            {/* AI Copilot Section */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-thin">
-              <span className="text-[11px] font-semibold text-zinc-500 tracking-wider uppercase block">
-                AI Copilot
-              </span>
-
-              {/* Ask AI to edit */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 block">
-                  Ask AI to edit
-                </label>
-                <Textarea
-                  value={aiEditPrompt}
-                  onValueChange={setAiEditPrompt}
-                  placeholder="e.g. Make the tone more formal, add a slide about pricing..."
-                  size="sm"
-                  minRows={2}
-                  maxRows={4}
-                  disabled={isAiEditing}
-                  classNames={{
-                    inputWrapper:
-                      "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-zinc-900 transition-colors rounded-md",
-                    input:
-                      "text-[12px] font-medium text-zinc-100 placeholder:text-zinc-500",
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAiEditSubmit();
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  className="w-full bg-white text-black hover:bg-zinc-200 font-medium text-[12px] h-9 transition-colors mt-2 rounded-md"
-                  startContent={
-                    isAiEditing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )
-                  }
-                  onPress={handleAiEditSubmit}
-                  isLoading={isAiEditing}
-                  disabled={!aiEditPrompt.trim() || isAiEditing}
-                >
-                  {isAiEditing ? "Applying Edit..." : "Apply Edit"}
-                </Button>
-              </div>
-
-              <Divider className="bg-zinc-800/50" />
-
-              {/* Quick AI actions */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                  AI Shortcuts
-                </label>
-
-                <Button
-                  size="sm"
-                  variant="flat"
-                  className="w-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 font-medium text-[12px] h-9 justify-start transition-colors rounded-md"
-                  startContent={<Wand2 className="w-4 h-4" />}
-                  onPress={handleRegenerate}
-                  isLoading={regenerating}
-                >
-                  Regenerate Deck
-                </Button>
-
-                <div className="flex gap-2">
-                  <Dropdown
-                    classNames={{
-                      content:
-                        "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md",
-                    }}
-                  >
-                    <DropdownTrigger>
-                      <Button
-                        size="sm"
-                        variant="bordered"
-                        className="flex-1 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 text-[12px] h-9 justify-start transition-colors rounded-md"
-                        startContent={<Type className="w-4 h-4" />}
-                      >
-                        Change Tone
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="Change tone actions"
-                      itemClasses={{
-                        base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
-                      }}
-                      onAction={(key) => handleToneChange(key as string)}
-                    >
-                      <DropdownItem key="formal">Formal</DropdownItem>
-                      <DropdownItem key="persuasive">Persuasive</DropdownItem>
-                      <DropdownItem key="casual">Casual</DropdownItem>
-                      <DropdownItem key="technical">Technical</DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-
-                  <Dropdown
-                    classNames={{
-                      content:
-                        "bg-zinc-900 border border-zinc-800 min-w-[150px] rounded-md",
-                    }}
-                  >
-                    <DropdownTrigger>
-                      <Button
-                        size="sm"
-                        variant="bordered"
-                        className="flex-1 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 text-[12px] h-9 justify-start transition-colors rounded-md"
-                        startContent={<LayoutGrid className="w-4 h-4" />}
-                      >
-                        Length
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="Expand or shorten actions"
-                      itemClasses={{
-                        base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-2 rounded-md",
-                      }}
-                      onAction={(key) => handleLengthChange(key as string)}
-                    >
-                      <DropdownItem key="expand">Expand</DropdownItem>
-                      <DropdownItem key="shorten">Shorten</DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* CONTEXT MENU */}
+      {contextMenu && (
+        <div
+          className="fixed bg-zinc-950/95 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-[100] min-w-[200px] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              handleAddSlide();
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add New Slide
+          </button>
+          
+          <button
+            onClick={() => {
+              setSelectedSlideIndex(contextMenu.slideIndex);
+              handleDuplicateSlide();
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Duplicate Slide
+          </button>
+          
+          <button
+            onClick={() => {
+              setSelectedSlideIndex(contextMenu.slideIndex);
+              handleDeleteSlide();
+              setContextMenu(null);
+            }}
+            disabled={slides.length <= 1}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/30 flex items-center gap-2 transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Slide
+          </button>
+          
+          <Divider className="my-1.5 bg-zinc-800/80" />
+          
+          <div className="px-3 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+            Reorder
+          </div>
+          
+          <button
+            onClick={() => {
+              setSelectedSlideIndex(contextMenu.slideIndex);
+              handleMoveSlide("up");
+              setContextMenu(null);
+            }}
+            disabled={contextMenu.slideIndex === 0}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors disabled:opacity-30"
+          >
+            <ChevronLeft className="rotate-90 w-3.5 h-3.5" />
+            Move Up
+          </button>
+          
+          <button
+            onClick={() => {
+              setSelectedSlideIndex(contextMenu.slideIndex);
+              handleMoveSlide("down");
+              setContextMenu(null);
+            }}
+            disabled={contextMenu.slideIndex === slides.length - 1}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors disabled:opacity-30"
+          >
+            <ChevronRight className="rotate-90 w-3.5 h-3.5" />
+            Move Down
+          </button>
+          
+          <Divider className="my-1.5 bg-zinc-800/80" />
+          
+          <div className="px-3 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+            Change Layout
+          </div>
+          
+          {[
+            { key: "title", label: "Title Slide" },
+            { key: "content", label: "Content List" },
+            { key: "two_column", label: "Two Columns" },
+            { key: "data", label: "Data Metrics" },
+            { key: "chart", label: "Metrics + Chart" },
+            { key: "quote", label: "Quote Slide" },
+            { key: "closing", label: "Closing / CTA" },
+          ].map((l) => (
+            <button
+              key={l.key}
+              onClick={() => {
+                setSelectedSlideIndex(contextMenu.slideIndex);
+                handleUpdateSlideLayout(l.key);
+                setContextMenu(null);
+              }}
+              className={`w-full text-left px-3.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center justify-between ${
+                slides[contextMenu.slideIndex]?.layout === l.key
+                  ? "text-blue-400 bg-blue-950/20"
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+              }`}
+            >
+              {l.label}
+              {slides[contextMenu.slideIndex]?.layout === l.key && (
+                <CheckCircle className="w-3.5 h-3.5 text-blue-400" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────
           FULLSCREEN PRESENTATION PLAYER MODE
@@ -1818,7 +1857,7 @@ export default function EditorPage() {
 
       {/* Chat panel */}
       {isChatOpen && (
-        <div className="fixed top-0 right-0 h-screen w-[45vw] max-w-[600px] min-w-[440px] bg-[#09090b] border-l border-zinc-800 shadow-2xl z-50 flex flex-col transition-transform duration-300">
+        <div className="fixed top-0 right-0 h-screen w-[50vw] max-w-[700px] min-w-[450px] bg-[#09090b]/90 backdrop-blur-lg border-l border-zinc-800/80 shadow-2xl z-50 flex flex-col transition-transform duration-300">
           {/* Panel header */}
           <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60 backdrop-blur-md flex-shrink-0">
             <div className="flex items-center gap-3">

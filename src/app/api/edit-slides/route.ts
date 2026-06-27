@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     console.log("Editing slides via MiniMax-M3...");
     const client = new OpenAI({
       baseURL: "https://llm.kimchi.dev/openai/v1",
-      apiKey: process.env['CASTAI_API_KEY'],
+      apiKey: process.env['CASTAI_API_KEY'] || process.env['TOKENROUTER_API_KEY'] || "",
     });
 
     const systemPrompt = `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
