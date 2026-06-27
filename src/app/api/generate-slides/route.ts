@@ -123,7 +123,7 @@ Context: Tone is ${tone || "professional"}, Audience is ${audience || "general"}
 First slide MUST be 'title' layout. Last slide MUST be 'closing' layout.`;
 
       const response = await client.chat.completions.create({
-        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
+        model: "minimax-m3",
         messages: [
           {
             role: "user",
@@ -139,13 +139,16 @@ First slide MUST be 'title' layout. Last slide MUST be 'closing' layout.`;
       if (jsonStr.startsWith("```")) {
         jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
       }
-      slidesJson = JSON.parse(jsonStr);
-      if (!Array.isArray(slidesJson)) {
-        throw new Error("Response is not an array");
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed)) {
+        slidesJson = parsed;
+      } else if (parsed && Array.isArray(parsed.slides)) {
+        slidesJson = parsed.slides;
+      } else {
+        throw new Error("Response does not contain a slides array");
       }
     } catch (apiError: any) {
       console.warn("Upstream LLM API failed (possibly credit exhaustion). Falling back to premium local template generation. Error details:", apiError.message);
-      // Fallback to high quality mock slides to maintain excellent UX
       slidesJson = generateMockSlides(prompt);
     }
 

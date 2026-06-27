@@ -72,7 +72,7 @@ Make sure the content matches the plan item's layout and description exactly. Do
 
     try {
       const response = await client.chat.completions.create({
-        model: "castai_v1_d3e00ce00d65cd1e23389e0fc71d4bd1db9909af3f0699a27bc5d0dac6ddc7d9_1e5d3cbd",
+        model: "minimax-m3",
         messages,
       });
 

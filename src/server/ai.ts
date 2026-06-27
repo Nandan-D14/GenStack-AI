@@ -1,8 +1,8 @@
 import OpenAI from "openai"
 
-const apiKey = process.env.OPENAI_API_KEY || "sk-AOt67meuELDInKqIzth57o1PvyyZ3O8tz5ZjJ21Fwz2sHkw0";
-const baseURL = process.env.OPENAI_BASE_URL || "https://api.tokenrouter.com/v1";
-const modelName = process.env.OPENAI_MODEL || "MiniMax-M3";
+const apiKey = process.env.CASTAI_API_KEY || process.env.TOKENROUTER_API_KEY || "";
+const baseURL = "https://llm.kimchi.dev/openai/v1";
+const modelName = "minimax-m3";
 
 const openai = new OpenAI({
   apiKey,

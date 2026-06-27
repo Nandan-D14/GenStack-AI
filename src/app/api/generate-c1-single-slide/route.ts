@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       : "";
 
     const response = await client.chat.completions.create({
-      model: "c1/artifact/v-20251030",
+      model: "c1/artifact/v-dev",
       messages: [
         {
           role: "system",
