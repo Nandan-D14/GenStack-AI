@@ -13,12 +13,15 @@ async function getOrCreateUser(ctx: any) {
     if (mockUser) {
       return mockUser._id;
     }
-    return await ctx.db.insert("users", {
-      name: "Mock User",
-      email: "mock@example.com",
-      plan: "free",
-      createdAt: new Date().toISOString(),
-    });
+    if (typeof ctx.db.insert === "function") {
+      return await ctx.db.insert("users", {
+        name: "Mock User",
+        email: "mock@example.com",
+        plan: "free",
+        createdAt: new Date().toISOString(),
+      });
+    }
+    return null;
   }
 
   // Find user by email
@@ -31,14 +34,18 @@ async function getOrCreateUser(ctx: any) {
     return user._id;
   }
 
-  // Create new user if not exists
-  return await ctx.db.insert("users", {
-    name: identity.name,
-    email: identity.email,
-    image: identity.pictureUrl,
-    plan: "free",
-    createdAt: new Date().toISOString(),
-  });
+  // Create new user if not exists (only in mutation context)
+  if (typeof ctx.db.insert === "function") {
+    return await ctx.db.insert("users", {
+      name: identity.name,
+      email: identity.email,
+      image: identity.pictureUrl,
+      plan: "free",
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return null;
 }
 
 /**
