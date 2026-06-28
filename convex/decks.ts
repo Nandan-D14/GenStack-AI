@@ -13,15 +13,12 @@ async function getOrCreateUser(ctx: any) {
     if (mockUser) {
       return mockUser._id;
     }
-    if (typeof ctx.db.insert === "function") {
-      return await ctx.db.insert("users", {
-        name: "Mock User",
-        email: "mock@example.com",
-        plan: "free",
-        createdAt: new Date().toISOString(),
-      });
-    }
-    return null;
+    return await ctx.db.insert("users", {
+      name: "Mock User",
+      email: "mock@example.com",
+      plan: "free",
+      createdAt: new Date().toISOString(),
+    });
   }
 
   // Find user by email
@@ -34,25 +31,42 @@ async function getOrCreateUser(ctx: any) {
     return user._id;
   }
 
-  // Create new user if not exists (only in mutation context)
-  if (typeof ctx.db.insert === "function") {
-    return await ctx.db.insert("users", {
-      name: identity.name,
-      email: identity.email,
-      image: identity.pictureUrl,
-      plan: "free",
-      createdAt: new Date().toISOString(),
-    });
+  // Create new user if not exists
+  return await ctx.db.insert("users", {
+    name: identity.name,
+    email: identity.email,
+    image: identity.pictureUrl,
+    plan: "free",
+    createdAt: new Date().toISOString(),
+  });
+}
+
+// Helper to get user ID without creating it (for read-only queries)
+async function getUser(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    // For local development fallback when Clerk is blocked/offline:
+    const mockUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q: any) => q.eq("email", "mock@example.com"))
+      .unique();
+    return mockUser ? mockUser._id : null;
   }
 
-  return null;
+  // Find user by email
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q: any) => q.eq("email", identity.email))
+    .unique();
+
+  return user ? user._id : null;
 }
 
 // List all decks for the authenticated user
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getOrCreateUser(ctx);
+    const userId = await getUser(ctx);
     if (!userId) {
       return [];
     }
@@ -68,7 +82,7 @@ export const list = query({
 export const getById = query({
   args: { id: v.id("decks") },
   handler: async (ctx, args) => {
-    const userId = await getOrCreateUser(ctx);
+    const userId = await getUser(ctx);
     if (!userId) {
       return null;
     }
