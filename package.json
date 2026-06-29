@@ -20,6 +20,7 @@
     "@crayonai/react-core": "^0.7.7",
     "@crayonai/react-ui": "^0.9.16",
     "@crayonai/stream": "^0.6.4",
+    "@google/generative-ai": "^0.24.1",
     "@heroui/react": "^2.7.6",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-dialog": "^1.1.17",

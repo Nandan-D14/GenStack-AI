@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Button, Input, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Progress, Tooltip, ScrollShadow } from "@heroui/react";
-import { Sparkles, ArrowLeft, CheckCircle, Send, Plus, GripVertical, Trash2, Edit3, Loader2 } from "lucide-react";
+import { Sparkles, ArrowLeft, CheckCircle, Send, Plus, GripVertical, Trash2, Edit3, Loader2, MessageCircle } from "lucide-react";
 
 type PlanItem = {
   id: string;
@@ -55,8 +55,8 @@ export default function PlanPage() {
   const router = useRouter();
 
   const [phase, setPhase] = useState<
-    "researching" | "planning" | "generating" | "done"
-  >("researching");
+    "discovery" | "planning" | "generating" | "done"
+  >("discovery");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -80,7 +80,7 @@ export default function PlanPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isProcessing]);
 
-  // Auto-start research when deck loads
+  // Initialize conversation when deck loads
   useEffect(() => {
     if (!deck || hasStartedResearch) return;
     setHasStartedResearch(true);
@@ -106,6 +106,7 @@ export default function PlanPage() {
         const savedChat = JSON.parse(deck.chatHistory as string);
         if (Array.isArray(savedChat) && savedChat.length > 0) {
           setChatMessages(savedChat);
+          if (!loadedPlan) setPhase("discovery");
           return;
         }
       } catch {}
@@ -117,7 +118,13 @@ export default function PlanPage() {
         "I've loaded your saved plan. You can edit any slide, chat to refine, or approve when ready.",
       );
     } else {
-      startResearch();
+      // Discovery phase — greet the user and ask clarifying questions
+      setPhase("discovery");
+      const title = (deck as any)?.title || "your presentation";
+      addMsg(
+        "assistant",
+        `Great topic — "${title}"! 🎯\n\nBefore I build your slide plan, I'd love to understand your goals:\n\n• Who's your target audience? (investors, team, clients, conference?)\n• What's the ONE key takeaway you want them to remember?\n• Any specific data, stories, or examples to include?\n\nJust tell me in your own words and I'll craft the perfect structure.`,
+      );
     }
   }, [deck]);
 
@@ -129,49 +136,6 @@ export default function PlanPage() {
     });
   };
 
-  const startResearch = async () => {
-    setIsProcessing(true);
-    addMsg(
-      "assistant",
-      `Researching "${(deck as any)?.title || "your topic"}" and building a tailored presentation plan...`,
-    );
-
-    try {
-      const res = await fetch("/api/research-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: (deck as any)?.title || "",
-          tone: (deck as any)?.tone || "professional",
-          audience: (deck as any)?.audience || "general audience",
-          slidesCount: 8,
-          deckId: id,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.message) addMsg("assistant", data.message);
-      if (Array.isArray(data.plan) && data.plan.length > 0) {
-        setPlanItems(data.plan);
-        await runUpdatePlan({
-          id: id as any,
-          planItems: JSON.stringify(data.plan),
-          planStatus: "planning",
-          generationMode,
-        });
-      }
-      setPhase("planning");
-    } catch {
-      addMsg(
-        "assistant",
-        "Research encountered an issue. Using a default structure — you can edit it freely.",
-      );
-      setPhase("planning");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleChatSend = async () => {
     const msg = chatInput.trim();
     if (!msg || isProcessing) return;
@@ -180,24 +144,27 @@ export default function PlanPage() {
     setIsProcessing(true);
 
     try {
-      const res = await fetch("/api/research-plan", {
+      const res = await fetch("/api/plan-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: (deck as any)?.title || "",
+          message: msg,
+          chatHistory: [...chatMessages, { role: "user", content: msg }],
+          currentPlan: planItems.length > 0 ? planItems : null,
+          deckTitle: (deck as any)?.title || "",
           tone: (deck as any)?.tone || "professional",
           audience: (deck as any)?.audience || "general",
-          slidesCount: planItems.length || 8,
-          deckId: id,
-          chatHistory: [...chatMessages, { role: "user", content: msg }],
-          currentPlan: planItems,
+          slidesCount: planItems.length || 10,
         }),
       });
 
       const data = await res.json();
       if (data.message) addMsg("assistant", data.message);
-      if (Array.isArray(data.plan) && data.plan.length > 0) {
+
+      // If the AI returned a plan (created or updated), apply it
+      if (data.plan && Array.isArray(data.plan) && data.plan.length > 0) {
         setPlanItems(data.plan);
+        setPhase("planning");
         await runUpdatePlan({
           id: id as any,
           planItems: JSON.stringify(data.plan),
@@ -206,7 +173,7 @@ export default function PlanPage() {
         });
       }
     } catch {
-      addMsg("assistant", "Couldn't process that request. Please try again.");
+      addMsg("assistant", "Something went wrong. Please try again.");
     } finally {
       setIsProcessing(false);
       inputRef.current?.focus();
@@ -232,40 +199,59 @@ export default function PlanPage() {
 
     for (let i = 0; i < planItems.length; i++) {
       setGeneratingIndex(i);
-      try {
-        const endpoint =
-          generationMode === "template"
-            ? "/api/generate-c1-single-slide"
-            : "/api/generate-single-slide";
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planItem: planItems[i],
-            deckContext: (deck as any)?.title || "",
-            tone: (deck as any)?.tone || "professional",
-            audience: (deck as any)?.audience || "general",
-            allPlanItems: planItems,
-            deckId: id,
-          }),
-        });
-        const slideData = await res.json();
-        generatedSlides.push({
-          title: slideData.title || planItems[i].title,
-          layout: slideData.layout || planItems[i].layout,
-          bullets: Array.isArray(slideData.bullets)
-            ? slideData.bullets
-            : [planItems[i].description],
-          speakerNotes: slideData.speakerNotes || "",
-          c1Dsl: slideData.c1Dsl || undefined,
-        });
-      } catch {
+      let slideGenerated = false;
+
+      // Retry up to 3 times per slide
+      for (let attempt = 0; attempt < 3 && !slideGenerated; attempt++) {
+        try {
+          const endpoint =
+            generationMode === "template"
+              ? "/api/generate-c1-single-slide"
+              : "/api/generate-single-slide";
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              planItem: planItems[i],
+              deckContext: (deck as any)?.title || "",
+              tone: (deck as any)?.tone || "professional",
+              audience: (deck as any)?.audience || "general",
+              allPlanItems: planItems,
+              deckId: id,
+            }),
+          });
+          const slideData = await res.json();
+
+          if (slideData.error) {
+            throw new Error(slideData.error);
+          }
+
+          generatedSlides.push({
+            title: slideData.title || planItems[i].title,
+            layout: slideData.layout || planItems[i].layout,
+            bullets: Array.isArray(slideData.bullets)
+              ? slideData.bullets
+              : [planItems[i].description],
+            speakerNotes: slideData.speakerNotes || "",
+            c1Dsl: slideData.c1Dsl || undefined,
+          });
+          slideGenerated = true;
+        } catch {
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
+      }
+
+      // If all retries failed, insert a placeholder so the user can edit manually
+      if (!slideGenerated) {
         generatedSlides.push({
           title: planItems[i].title,
           layout: planItems[i].layout,
-          bullets: [planItems[i].description],
+          bullets: [planItems[i].description, "Edit this slide manually in the editor"],
           speakerNotes: "",
         });
+        addMsg("assistant", `⚠️ Slide ${i + 1} couldn't be generated after retries. You can edit it in the editor.`);
       }
     }
 
@@ -358,7 +344,7 @@ export default function PlanPage() {
                 </h1>
                 <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${isProcessing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
-                  {isProcessing ? "AI is thinking..." : "Ready to plan"}
+                  {isProcessing ? "AI is thinking..." : phase === "discovery" ? "Let's plan your deck" : "Ready to refine"}
                 </p>
               </div>
             </div>
@@ -368,8 +354,10 @@ export default function PlanPage() {
           <ScrollShadow className="flex-1 p-6 space-y-6 bg-[#09090b]">
             {chatMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-                <Loader2 className="w-8 h-8 animate-spin mb-3 text-zinc-600" />
-                <p className="text-sm">Initiating research protocol...</p>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600/20 to-indigo-500/20 border border-blue-500/20 flex items-center justify-center mb-4">
+                  <MessageCircle className="w-6 h-6 text-blue-400" />
+                </div>
+                <p className="text-sm text-zinc-400">Loading your AI co-pilot...</p>
               </div>
             )}
 
@@ -426,8 +414,10 @@ export default function PlanPage() {
                   }
                 }}
                 placeholder={
-                  phase === "planning"
-                    ? 'Tell AI to "Add a ROI slide" or "Make it 6 slides"'
+                  phase === "discovery"
+                    ? "Tell the AI about your presentation goals..."
+                    : phase === "planning"
+                    ? 'Refine your plan — "Add a ROI slide" or "Make it shorter"'
                     : "Plan is being generated..."
                 }
                 disabled={isProcessing || phase === "generating" || phase === "done"}
@@ -449,7 +439,7 @@ export default function PlanPage() {
               </Button>
             </div>
             <p className="text-[11px] text-zinc-500 mt-3 text-center tracking-wide font-medium">
-              AI Copilot is active. Enter to send.
+              {phase === "discovery" ? "Chat with AI to plan your presentation. Enter to send." : "AI Copilot is active. Enter to send."}
             </p>
           </div>
         </div>
@@ -469,7 +459,11 @@ export default function PlanPage() {
           <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-[#121214] z-10">
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">Presentation Plan</h2>
-              <p className="text-xs text-zinc-400 mt-1 font-medium">{planItems.length} slides • Drag to reorder</p>
+              <p className="text-xs text-zinc-400 mt-1 font-medium">
+                {planItems.length > 0 
+                  ? `${planItems.length} slides • Drag to reorder` 
+                  : "Chat with AI to generate your plan"}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               {phase === "planning" && planItems.length > 0 && (
@@ -495,10 +489,10 @@ export default function PlanPage() {
             {planItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500">
                 <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-white/5 flex items-center justify-center mb-5 shadow-inner">
-                  <Sparkles className="w-8 h-8 text-zinc-600 animate-pulse" />
+                  <Sparkles className="w-8 h-8 text-zinc-600" />
                 </div>
-                <p className="text-base font-medium text-zinc-300">Structuring presentation...</p>
-                <p className="text-sm mt-2">AI is analyzing the topic to build a narrative.</p>
+                <p className="text-base font-medium text-zinc-300">Your plan will appear here</p>
+                <p className="text-sm mt-2 text-center max-w-xs">Chat with the AI on the left to discuss your goals. Once you're aligned, it will generate a structured slide plan.</p>
               </div>
             ) : (
               <div className="space-y-4 pb-10">

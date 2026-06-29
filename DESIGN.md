@@ -6,34 +6,37 @@ This document details the system design, database schema, API architecture, and 
 
 ## 1. High-Level Architecture
 
-GenStack AI uses a decoupled, type-safe stack optimized for fast rendering, rich interactive editing, and reliable asynchronous generation:
+GenStack AI uses a reactive, type-safe stack optimized for real-time state synchronization, interactive slide editing, and serverless AI orchestration:
 
 ```mermaid
 graph TD
     subgraph Client [Client - Next.js App Router]
         UI[UI Workspace & Editor]
         HeroUI[HeroUI & Tailwind CSS]
-        tRPCC[tRPC Client]
+        Clerk[Clerk Auth Client]
+        ConvexC[Convex React Client]
         UI --> HeroUI
-        UI --> tRPCC
+        UI --> ConvexC
+        UI --> Clerk
     end
 
-    subgraph Backend [Server - Next.js & Node.js]
-        tRPCS[tRPC Server & Routers]
-        Auth[NextAuth.js]
-        Prisma[Prisma ORM]
-        Export[Export Engine - pptxgenjs / PDF]
-        tRPCC --> tRPCS
-        tRPCS --> Auth
-        tRPCS --> Prisma
-        tRPCS --> Export
+    subgraph Backend [Convex Serverless Backend]
+        ConvexS[Convex Server - Queries/Mutations/Actions]
+        ConvexDb[(Convex DB)]
+        ConvexStorage[Convex File Storage]
+        ConvexC <--> |WebSockets / Reactive| ConvexS
+        ConvexS <--> ConvexDb
+        ConvexS <--> ConvexStorage
     end
 
     subgraph External [External Services]
-        DB[(SQLite / PostgreSQL)]
-        OpenAI[OpenAI / Gemini API]
-        Prisma --> DB
-        tRPCS --> OpenAI
+        ClerkS[Clerk Auth Service]
+        Thesys[Thesys C1 API]
+        TokenRouter[TokenRouter / CastAI LLM API]
+        Clerk --> ClerkS
+        ConvexS --> ClerkS
+        ConvexS --> Thesys
+        ConvexS --> TokenRouter
     end
 ```
 
@@ -41,56 +44,72 @@ graph TD
 
 ## 2. Core Database Schema
 
-The SQLite/PostgreSQL schema is managed via Prisma. Relationships enforce cascade deletes where applicable to ensure data hygiene.
+The database uses Convex's document-relational model. The schema is defined reactively in `convex/schema.ts`.
 
 ```mermaid
 erDiagram
-    User ||--o{ Account : "has"
-    User ||--o{ Session : "has"
-    User ||--o{ Deck : "owns"
-    User ||--o{ BrandKit : "owns"
-    User ||--o{ WorkspaceMember : "belongs to"
-    User ||--o{ Comment : "writes"
-    Workspace ||--o{ WorkspaceMember : "contains"
-    Workspace ||--o{ Template : "defines"
-    Workspace ||--o| BrandKit : "defines"
-    Deck ||--o{ Slide : "contains"
-    Deck ||--o{ Version : "has"
-    Deck ||--o{ Comment : "has"
-    Deck }o--o| BrandKit : "uses"
+    users ||--o{ workspaces : "owns"
+    users ||--o{ workspaceMembers : "belongs to"
+    users ||--o{ decks : "owns"
+    users ||--o{ brandKits : "owns"
+    users ||--o{ comments : "writes"
+    users ||--o{ mediaFiles : "owns"
+    workspaces ||--o{ workspaceMembers : "contains"
+    workspaces ||--o| brandKits : "defines"
+    decks ||--o{ slides : "contains"
+    decks ||--o{ versions : "has"
+    decks ||--o{ comments : "has"
+    decks }o--o| brandKits : "uses"
 ```
 
-### 2.1 Database Models (Prisma Reference)
+### 2.1 Database Models (Convex Reference)
 
-*   **User & Authentication**: Integrated with NextAuth adapter rules (`User`, `Account`, `Session`, `VerificationToken`).
-*   **Workspace**: Groups members and enforces access control lists.
-*   **Deck**: Represents a presentation. Linked to slides, version snapshots, and brand kits.
-*   **Slide**: Individual slides. Content is serialized as JSON for layout flexibility. Enforces spatial order and lock states.
-*   **BrandKit**: Color tokens (primary, secondary, accent, background, text) and typography styles applied to decks.
-*   **Template**: Pre-defined layout categories (e.g. startup, HR, report).
-*   **Version**: Slide snapshots for history rollback.
-
----
-
-## 3. API Router Design (tRPC)
-
-API interactions are managed through a unified tRPC API Router `src/server/routers/_app.ts` split into routers.
-
-### 3.1 Deck Router (`deckRouter`)
-*   **`list`** (Protected): Fetch all decks owned by the authenticated user.
-*   **`getById`** (Protected): Fetch a deck with its slides and brand kit.
-*   **`create`** (Protected): Create a new blank deck with metadata.
-*   **`generateOutline`** (Protected): Run AI to generate an outline and create slides.
-*   **`regenerateSlide`** (Protected): Regenerate a single unlocked slide with AI.
-*   **`export`** (Protected): Generate and return base64 PPTX representation of a deck.
-
-### 3.2 Brand Kit Router (`brandKitRouter`)
-*   **`list`** (Protected): List user brand kits.
-*   **`create`** (Protected): Create a new Brand Kit with default theme colors.
+*   **users**: Managed in sync with Clerk profiles. Tracks details like plan tiers (`free`, `pro`, `team`).
+*   **workspaces**: Groups members and enforces access control list permissions.
+*   **decks**: Represents a presentation. Tracks metadata, outline plans, chat histories, active Brand Kit configuration, C1 artifact IDs/responses, and layout planning status.
+*   **slides**: Individual slides containing spatial sorting order, content layout type, content bullets (as serialized JSON arrays), speaker notes, edit locking flags, and optional C1 DSL code.
+*   **brandKits**: Style configurations (primary/secondary/accent colors, text/heading fonts, and logos) locked to organization templates.
+*   **comments**: Slide-specific or deck-wide discussion threads.
+*   **versions**: Full JSON state snapshot checkpoints of decks.
+*   **mediaFiles**: Media attachments managed via Convex File Storage.
 
 ---
 
-## 4. AI Orchestration Pipeline
+## 3. API Router & Server Functions (Convex)
+
+State management and database updates are executed via type-safe serverless Convex queries, mutations, and actions:
+
+### 3.1 Deck Operations (`convex/decks.ts`)
+*   **`list`** (Query): Fetch all decks owned by the authenticated user/organization.
+*   **`getById`** (Query): Reactive real-time fetch of a single deck, including all of its sorted slides.
+*   **`create`** (Mutation): Instantiate a new presentation draft.
+*   **`deleteDeck`** (Mutation): Performs cascade deletion of the deck and its slides.
+*   **`updatePlan`** (Mutation): Save slide outlines, chat logs, and overall generation status.
+
+### 3.2 Slide Operations (`convex/slides.ts`)
+*   **`createSlide`** / `deleteSlide` / `duplicateSlide` (Mutations): Slide-level structure manipulation.
+*   **`updateSlideContent`** (Mutation): Instant updating of titles, layouts, bullet copy, visual suggestions, or speaker notes.
+*   **`updateSlideOrders`** (Mutation): Instant order index modifications supporting drag-and-drop.
+*   **`replaceAllSlides`** (Mutation): Replaces the entire deck slide set when regenerating from a plan.
+
+### 3.3 Export Operations (`convex/export.ts`)
+*   **`generatePptx`** (Action): Dynamically imports `pptxgenjs` in a server environment, builds editable slide structures incorporating layouts and speaker notes, and returns a downloadable base64 data URL.
+
+### 3.4 Media Operations (`convex/media.ts`)
+*   **`generateUploadUrl`** (Mutation): Generates a secure upload URL from Convex File Storage.
+*   **`saveFile`** (Mutation): Persists the upload's metadata and maps its storage ID to a public asset URL.
+
+---
+
+## 4. Next.js API Routes
+
+*   **`/api/research-plan`**: Interacts with the LLM endpoint (TokenRouter/CastAI using the `minimax-m3` model) to construct or refine a presentation outline plan before slides are generated.
+*   **`/api/generate-single-slide`**: AI generation of titles, bullet points, and speaker notes for a single plan item.
+*   **`/api/generate-c1-single-slide`**: Generates a visually rich single slide using the **Thesys C1 Artifact API** under template modes.
+
+---
+
+## 5. AI Orchestration Pipeline
 
 ```
 ┌──────────────┐      ┌───────────────────┐      ┌─────────────┐      ┌────────────────┐
@@ -107,11 +126,11 @@ API interactions are managed through a unified tRPC API Router `src/server/route
 
 ---
 
-## 5. Technology Stack & Packages
+## 6. Technology Stack & Packages
 
 *   **Framework**: Next.js 15 (App Router, React 19, TypeScript 5)
-*   **Database ORM**: Prisma Client (v6.19)
-*   **API Protocol**: tRPC (v11) & React Query
+*   **Database & Backend**: Convex DB (v1.41)
+*   **Authentication**: Clerk (v7.5)
 *   **Styling**: Tailwind CSS & HeroUI (UI primitives)
 *   **Export**: `pptxgenjs` (High-fidelity PowerPoint generation)
 *   **AI Integration**: OpenAI SDK (`openai`)

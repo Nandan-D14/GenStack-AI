@@ -1,162 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { getAIClient, extractJson } from "@/server/ai";
+
+
 
 export async function POST(req: NextRequest) {
   try {
     const { slides, prompt, deckId } = await req.json();
 
     if (!slides || !prompt || !deckId) {
-      return NextResponse.json({ error: "Missing required fields (slides, prompt, deckId)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields (slides, prompt, deckId)" },
+        { status: 400 }
+      );
     }
 
-    console.log("Editing slides via MiniMax-M3...");
-    const client = new OpenAI({
-      baseURL: "https://llm.kimchi.dev/openai/v1",
-      apiKey: process.env['CASTAI_API_KEY'] || process.env['TOKENROUTER_API_KEY'] || "",
-    });
+    const { client, model } = getAIClient();
 
-    const systemPrompt = `You are an expert presentation editor. You will receive the existing slides as a JSON array and an edit instruction.
-Apply the edit instruction to the slides and return the COMPLETE updated slides array.
+    const systemPrompt = `You are an expert presentation editor. You will receive existing slides as JSON and an edit instruction.
+Apply the edit instruction precisely and return the COMPLETE updated slides array.
 
-EXAMPLES OF EDITS:
-1. Tone Change (e.g. "make it professional"):
-   - Rewrite bullets to use formal, strategic business language.
-2. Length Change (e.g. "make it shorter"):
-   - Condense verbose sentences, reduce bullets to 3 key punchy points.
-3. Content Addition (e.g. "add a slide about competitors"):
-   - Add a new slide object with appropriate layout, title, and topic-specific bullets.
-4. Content Deletion (e.g. "delete slide 3"):
-   - Remove the targeted slide from the array.
+EDIT TYPES YOU HANDLE:
+1. Tone Change — Rewrite all bullet text to match the requested tone (formal, casual, persuasive, etc.)
+2. Length Change — Add or remove bullets/slides to match requested length
+3. Content Addition — Add new slide(s) with appropriate layout, topic-specific title, and substantive bullets
+4. Content Deletion — Remove targeted slide(s) from the array
+5. Reordering — Move slides to a different position
+6. Content Rewrite — Rewrite bullets for clarity, impact, or a different angle
 
-IMPORTANT: You MUST respond with ONLY a valid JSON array. Do NOT wrap it in markdown code blocks like \`\`\`json. No explanations.
+QUALITY RULES:
+- Every bullet must contain specific, substantive information — no filler
+- Keep unaffected slides exactly the same
+- Only modify slides that the edit instruction targets
+- New slides should have layout-appropriate content
 
 Each slide object must have:
-- "title": string (the slide headline)
-- "layout": one of "title", "content", "data", "chart", "comparison", "quote", "closing", "two_column"
-- "bullets": array of strings (key points for this slide)
-- "speakerNotes": string (brief notes for the speaker)
+- "title": string
+- "layout": one of "title", "content", "data", "chart", "quote", "closing", "two_column"
+- "bullets": array of strings
+- "speakerNotes": string
 
-Rules:
-- Keep unaffected slides exactly the same.
-- Only modify slides that the edit instruction targets.
-- You may add, delete, or reorder slides if requested.`;
+Return ONLY a valid JSON array of slide objects. No markdown fences, no explanation.`;
 
-    const userContent = `INSTRUCTIONS:\n${systemPrompt}\n\nHere are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`;
+    // Retry up to 2 times
+    let lastError = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: `Here are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`,
+            },
+          ],
+        });
 
-    let updatedSlides: any[];
-    try {
-      const response = await client.chat.completions.create({
-        model: "minimax-m3",
-        messages: [
-          { role: "user", content: userContent },
-        ],
-      });
+        const rawContent = response.choices[0]?.message?.content || "";
+        const updatedSlides = extractJson(rawContent);
 
-      const rawContent = response.choices[0]?.message?.content || "";
-      console.log("Raw LLM response received, length:", rawContent.length);
-
-      let jsonStr = rawContent.trim();
-      if (jsonStr.startsWith("```")) {
-        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
-      }
-      updatedSlides = JSON.parse(jsonStr);
-      if (!Array.isArray(updatedSlides)) {
-        throw new Error("Response is not an array");
-      }
-    } catch (apiError: any) {
-      console.warn("Upstream LLM API failed (possibly credit exhaustion). Falling back to premium local template modification. Error details:", apiError.message);
-      
-      const instr = prompt.toLowerCase();
-      const newSlides = JSON.parse(JSON.stringify(slides));
-      
-      if (instr.includes("add") || instr.includes("create") || instr.includes("insert") || instr.includes("new slide")) {
-        let title = "New Slide";
-        const titleMatch = prompt.match(/(?:title|called|named|about)\s+["']?([^"'\n\r]+)["']?/i);
-        if (titleMatch && titleMatch[1]) {
-          title = titleMatch[1];
-        } else {
-          const words = prompt.split(" ");
-          if (words.length > 3) {
-            title = words.slice(2, 6).join(" ");
-          }
+        if (!Array.isArray(updatedSlides)) {
+          throw new Error("Response is not an array");
         }
-        newSlides.push({
-          title: title,
-          layout: "content",
-          bullets: ["Key strategic objective", "Implementation roadmap detail", "Success metrics and verification"],
-          speakerNotes: `Details about ${title}.`
-        });
-        updatedSlides = newSlides;
-      } else if (instr.includes("delete") || instr.includes("remove")) {
-        if (newSlides.length > 1) {
-          const numMatch = instr.match(/(?:slide|number)\s*(\d+)/);
-          if (numMatch && numMatch[1]) {
-            const index = parseInt(numMatch[1], 10) - 1;
-            if (index >= 0 && index < newSlides.length) {
-              newSlides.splice(index, 1);
-            } else {
-              newSlides.pop();
-            }
-          } else {
-            newSlides.pop();
-          }
+
+        return NextResponse.json({ slides: updatedSlides });
+      } catch (err: any) {
+        lastError = err.message;
+        console.warn(
+          `Edit slides attempt ${attempt + 1} failed:`,
+          lastError
+        );
+        if (attempt < 1) {
+          await new Promise((r) => setTimeout(r, 1000));
         }
-        updatedSlides = newSlides;
-      } else if (instr.includes("shorter") || instr.includes("condense") || instr.includes("summarize") || instr.includes("brief")) {
-        newSlides.forEach((s: any) => {
-          if (s.bullets && s.bullets.length > 0) {
-            s.bullets = s.bullets.map((b: string) => {
-              const firstSentence = b.split(/[.!?]/)[0];
-              return firstSentence.length > 10 ? firstSentence.trim() : b;
-            }).slice(0, 3);
-          }
-        });
-        updatedSlides = newSlides;
-      } else if (instr.includes("longer") || instr.includes("expand") || instr.includes("elaborate") || instr.includes("more")) {
-        newSlides.forEach((s: any) => {
-          if (s.bullets && s.bullets.length > 0) {
-            s.bullets = s.bullets.map((b: string) => {
-              if (!b.includes("to ensure maximum scalability") && b.length < 50) {
-                return `${b} to ensure maximum scalability and align with operational goals`;
-              }
-              return b;
-            });
-            if (s.bullets.length < 4) {
-              s.bullets.push("Enhanced analytics and reporting capabilities integrated seamlessly");
-            }
-          }
-        });
-        updatedSlides = newSlides;
-      } else if (instr.includes("professional") || instr.includes("formal") || instr.includes("business")) {
-        newSlides.forEach((s: any) => {
-          if (s.bullets && s.bullets.length > 0) {
-            s.bullets = s.bullets.map((b: string) => {
-              return b
-                .replace(/\b(stuff|things)\b/gi, "capabilities")
-                .replace(/\b(good|nice|cool)\b/gi, "optimized")
-                .replace(/\b(fast)\b/gi, "high-performance");
-            });
-          }
-        });
-        updatedSlides = newSlides;
-      } else {
-        const contentIndex = newSlides.findIndex((s: any) => s.layout !== "title" && s.layout !== "closing");
-        const targetIndex = contentIndex >= 0 ? contentIndex : 0;
-        if (newSlides[targetIndex]) {
-          const slide = newSlides[targetIndex];
-          slide.bullets = [
-            ...slide.bullets.slice(0, 3),
-            `Key action: ${prompt.length > 60 ? prompt.slice(0, 60) + "..." : prompt}`
-          ];
-        }
-        updatedSlides = newSlides;
       }
     }
 
-    return NextResponse.json({ slides: updatedSlides });
+    // All retries failed
+    console.error("Edit slides failed after retries:", lastError);
+    return NextResponse.json(
+      { error: "Failed to edit slides. Please try again." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Error editing slides:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
-

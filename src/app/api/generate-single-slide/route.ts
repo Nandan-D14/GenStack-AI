@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { getAIClient, extractJson } from "@/server/ai";
 
 type PlanItem = {
   id: string;
@@ -9,88 +9,225 @@ type PlanItem = {
   description: string;
 };
 
-function fallbackSlide(planItem: PlanItem) {
-  return {
-    title: planItem.title,
-    layout: planItem.layout,
-    bullets: [
-      planItem.description,
-      "Key point supporting the main idea",
-      "Supporting detail or statistic",
-    ],
-    speakerNotes: `Talk about ${planItem.title}: ${planItem.description}`,
+
+
+function buildSlidePrompt(
+  planItem: PlanItem,
+  deckContext: string,
+  tone: string,
+  audience: string,
+  allPlanItems: PlanItem[]
+): { system: string; user: string } {
+  const totalSlides = allPlanItems.length;
+  const slideIndex = planItem.order;
+
+  // Build narrative context
+  const prevSlide = slideIndex > 0 ? allPlanItems[slideIndex - 1] : null;
+  const nextSlide =
+    slideIndex < totalSlides - 1 ? allPlanItems[slideIndex + 1] : null;
+
+  const narrativeContext = [
+    `This is slide ${slideIndex + 1} of ${totalSlides}.`,
+    prevSlide
+      ? `Previous slide: "${prevSlide.title}" — ${prevSlide.description}`
+      : "This is the first slide.",
+    nextSlide
+      ? `Next slide: "${nextSlide.title}" — ${nextSlide.description}`
+      : "This is the final slide.",
+  ].join("\n");
+
+  const deckOutline = allPlanItems
+    .map(
+      (p, i) =>
+        `${i + 1}. "${p.title}" (${p.layout})${i === slideIndex ? " ← THIS SLIDE" : ""}`
+    )
+    .join("\n");
+
+  // Layout-specific content rules
+  const layoutRules: Record<string, string> = {
+    title: `TITLE SLIDE RULES:
+- Generate 1-2 bullets as subtitle text (the deck's value proposition or tagline)
+- Make the title compelling and attention-grabbing
+- Speaker notes: 2-3 sentences to welcome the audience and set the stage`,
+
+    content: `CONTENT SLIDE RULES:
+- Generate 4-5 substantive bullet points
+- Each bullet MUST be 8-15 words with specific, actionable information
+- NO filler phrases like "Key point about..." or "Supporting detail..."
+- Include real examples, specific strategies, or concrete details relevant to "${planItem.description}"
+- Speaker notes: 3-4 sentences that expand on the bullets with additional context`,
+
+    data: `DATA/METRICS SLIDE RULES:
+- Generate 3-4 bullets in STRICT format: "NUMBER: Description"
+- Examples of good format: "$4.2B: Total addressable market by 2027", "67%: Users reporting measurable improvement", "3x: Faster deployment vs traditional methods"
+- Use realistic, specific numbers that are plausible for this topic
+- Each metric must directly support the slide's thesis: "${planItem.description}"
+- Speaker notes: Explain the significance of each metric and what it means for the audience`,
+
+    chart: `CHART/TIMELINE SLIDE RULES:
+- Generate 3-4 bullets representing phases, time periods, or data progression
+- Format: "Phase/Period: Description with specific metric"
+- Examples: "Phase 1 — Foundation: Build core platform, onboard 50 beta users", "2024-2025: Market expansion targeting 3 new verticals"
+- Show clear progression or growth trajectory
+- Speaker notes: Narrate the data story and what drives each phase`,
+
+    quote: `QUOTE SLIDE RULES:
+- Generate EXACTLY 2 bullets:
+  * First bullet: A compelling, authentic-sounding quote relevant to "${planItem.description}" (20-40 words)
+  * Second bullet: "— Author Name, Title/Role" (use a real or realistic-sounding expert)
+- The quote must feel insightful and memorable, not generic
+- Speaker notes: 2-3 sentences providing context for why this quote matters`,
+
+    two_column: `TWO-COLUMN COMPARISON SLIDE RULES:
+- Generate EXACTLY 6 bullets: first 3 for LEFT column, last 3 for RIGHT column
+- Each bullet: 8-12 words, specific and parallel in structure
+- The two columns should represent a clear contrast or comparison related to "${planItem.description}"
+- Speaker notes: Explain the comparison and why it matters to the audience`,
+
+    closing: `CLOSING/CTA SLIDE RULES:
+- Generate 3 bullets as concrete action items or key takeaways
+- Each should be a specific, actionable next step (not vague)
+- Examples: "Schedule a pilot program with our team this quarter", "Review the ROI analysis shared in your follow-up email"
+- Speaker notes: Strong closing statement that reinforces the core message and creates urgency`,
   };
+
+  const layoutRule =
+    layoutRules[planItem.layout] || layoutRules["content"];
+
+  const system = `You are an expert presentation content writer creating one slide for a professional presentation.
+
+## PRESENTATION CONTEXT
+- Topic: "${deckContext}"
+- Audience: ${audience}
+- Tone: ${tone}
+- ${narrativeContext}
+
+## FULL DECK OUTLINE
+${deckOutline}
+
+## THIS SLIDE
+- Title: "${planItem.title}"
+- Layout: ${planItem.layout}
+- Purpose: ${planItem.description}
+
+## CONTENT REQUIREMENTS
+${layoutRule}
+
+## QUALITY STANDARDS
+- Every bullet must contain SPECIFIC information — no filler or placeholder text
+- Content must flow naturally from the previous slide and lead into the next
+- Use concrete examples, real-world references, and specific details
+- Match the ${tone} tone consistently
+- Speaker notes should sound natural when read aloud — like a real presenter talking
+
+## OUTPUT FORMAT
+Return ONLY a valid JSON object. No markdown fences, no explanation:
+{
+  "title": "A compelling, specific title for this slide",
+  "layout": "${planItem.layout}",
+  "bullets": ["array", "of", "strings"],
+  "speakerNotes": "Natural-sounding presenter script (2-4 sentences)"
+}`;
+
+  const user = `Generate the content for slide ${slideIndex + 1}: "${planItem.title}"
+
+This slide should cover: ${planItem.description}
+
+Remember: Return ONLY valid JSON.`;
+
+  return { system, user };
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { planItem, deckContext, tone, audience, allPlanItems } = await req.json();
+    const { planItem, deckContext, tone, audience, allPlanItems } =
+      await req.json();
 
     if (!planItem) {
-      return NextResponse.json({ error: "Missing planItem" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing planItem" },
+        { status: 400 }
+      );
     }
 
-    const client = new OpenAI({
-      baseURL: "https://llm.kimchi.dev/openai/v1",
-      apiKey: process.env['CASTAI_API_KEY'] || process.env['TOKENROUTER_API_KEY'] || "",
-    });
+    const { client, model } = getAIClient();
 
-    const allTitles = Array.isArray(allPlanItems)
-      ? allPlanItems.map((p: PlanItem) => p.title).join(", ")
-      : "";
+    const { system, user } = buildSlidePrompt(
+      planItem,
+      deckContext || "Presentation",
+      tone || "professional",
+      audience || "general audience",
+      Array.isArray(allPlanItems) ? allPlanItems : [planItem]
+    );
 
-    const systemPrompt = `You are an expert slide creator. Your task is to generate ONE specific slide based on its plan item.
+    // Retry up to 3 times
+    let lastError = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        });
 
-Return ONLY a valid JSON object matching this structure:
-{
-  "title": "A strong, concise title for this slide",
-  "layout": "title" | "content" | "data" | "chart" | "quote" | "two_column" | "closing",
-  "bullets": [
-    "Array of strings. For content/two_column: 3-5 concise bullet points.",
-    "For data: strings like 'Number: Description'",
-    "For quote: ['The actual quote text', 'Author name']"
-  ],
-  "speakerNotes": "2-3 sentences of what the speaker should say for this slide."
-}
+        const raw = response.choices[0]?.message?.content || "";
+        const result = extractJson(raw);
 
-Context for the entire presentation:
-- Topic: ${deckContext}
-- Audience: ${audience}
-- Tone: ${tone}
+        // Validate the result
+        if (!result.title || !Array.isArray(result.bullets)) {
+          throw new Error(
+            "Invalid slide format: missing title or bullets array"
+          );
+        }
 
-This specific slide you must generate:
-- Plan item: ${JSON.stringify(planItem)}
+        // Ensure bullets are non-empty strings
+        result.bullets = result.bullets.filter(
+          (b: any) => typeof b === "string" && b.trim().length > 0
+        );
 
-Make sure the content matches the plan item's layout and description exactly. Do not use markdown backticks in your output.`;
+        if (result.bullets.length === 0) {
+          throw new Error("Generated slide has no valid bullets");
+        }
 
-    const userContent = `Generate the slide JSON as instructed.\n\nINSTRUCTIONS:\n${systemPrompt}`;
-    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-      { role: "user", content: userContent },
-    ];
+        // Ensure layout matches
+        result.layout = result.layout || planItem.layout;
 
-    let result;
+        // Ensure speaker notes exist
+        result.speakerNotes =
+          result.speakerNotes || `Key points about ${planItem.title}.`;
 
-    try {
-      const response = await client.chat.completions.create({
-        model: "minimax-m3",
-        messages,
-      });
-
-      const raw = response.choices[0]?.message?.content || "";
-      let jsonStr = raw.trim();
-      if (jsonStr.startsWith("```")) {
-        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+        return NextResponse.json(result);
+      } catch (err: any) {
+        lastError = err.message;
+        console.warn(
+          `Slide generation attempt ${attempt + 1} failed for "${planItem.title}":`,
+          lastError
+        );
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        }
       }
-      result = JSON.parse(jsonStr);
-      if (!result.title || !Array.isArray(result.bullets)) throw new Error("Invalid slide format");
-    } catch (apiError: any) {
-      console.warn("Single slide gen failed, using fallback:", apiError.message);
-      result = fallbackSlide(planItem);
     }
 
-    return NextResponse.json(result);
+    // All retries failed — return error
+    console.error(
+      `Slide generation failed after 3 attempts for "${planItem.title}":`,
+      lastError
+    );
+    return NextResponse.json(
+      {
+        error: `Failed to generate slide "${planItem.title}" after multiple attempts. Please try again.`,
+        retryable: true,
+      },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Generate single slide error:", error);
-    return NextResponse.json({ error: error.message || "Internal error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Internal error" },
+      { status: 500 }
+    );
   }
 }
