@@ -30,10 +30,26 @@ export type UsageRecord = {
   totalTokens?: number;
 };
 
+// Running totals for lightweight in-process observability.
+const usageTotals = { calls: 0, tokens: 0, failures: 0 };
+
+export function getUsageTotals() {
+  return { ...usageTotals };
+}
+
 export function recordUsage(u: UsageRecord) {
   try {
+    usageTotals.calls += 1;
+    usageTotals.tokens += u.totalTokens ?? 0;
+    if (!u.ok) usageTotals.failures += 1;
+
+    // Optional per-call token budget: warn when exceeded so cost regressions
+    // surface in logs. Configure with AI_TOKEN_BUDGET_PER_CALL.
+    const budget = Number(process.env.AI_TOKEN_BUDGET_PER_CALL || 0);
+    const overBudget = budget > 0 && (u.totalTokens ?? 0) > budget;
+
     console.log(
-      `[ai.usage] task=${u.task} model=${u.model} ok=${u.ok} attempts=${u.attempts} latencyMs=${u.latencyMs} tokens=${u.totalTokens ?? "?"}`,
+      `[ai.usage] task=${u.task} model=${u.model} ok=${u.ok} attempts=${u.attempts} latencyMs=${u.latencyMs} tokens=${u.totalTokens ?? "?"} totals(calls=${usageTotals.calls},tokens=${usageTotals.tokens},failures=${usageTotals.failures})${overBudget ? " OVER_BUDGET" : ""}`,
     );
   } catch {
     /* no-op */
