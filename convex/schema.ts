@@ -104,6 +104,23 @@ export default defineSchema({
     createdAt: v.string(),
   }),
 
+  // Ingested source documents (chunked + embedded) for retrieval-augmented
+  // generation. Embeddings use the 256-dim hashed embedding in embedding.ts.
+  documents: defineTable({
+    deckId: v.id("decks"),
+    source: v.string(), // e.g. a URL, filename, or "notes"
+    chunkIndex: v.float64(),
+    text: v.string(),
+    embedding: v.array(v.float64()),
+    createdAt: v.string(),
+  })
+    .index("by_deckId", ["deckId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 256,
+      filterFields: ["deckId"],
+    }),
+
   // Long-term, cross-deck memory of a user's preferences and brand voice.
   userMemory: defineTable({
     userId: v.id("users"),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Button, Input, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Progress, Tooltip, ScrollShadow } from "@heroui/react";
 import { Sparkles, ArrowLeft, CheckCircle, Send, Plus, GripVertical, Trash2, Edit3, Loader2, MessageCircle } from "lucide-react";
@@ -81,6 +81,20 @@ export default function PlanPage() {
   const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
   const runReplaceAllSlides = useMutation(api.slides.replaceAllSlides);
   const runUpsertMemory = useMutation(api.memory.upsert);
+  const runSearch = useAction(api.rag.search);
+
+  // Retrieve top-k relevant source chunks (RAG) for a query, formatted for prompts.
+  const retrieveContext = async (queryText: string): Promise<string | null> => {
+    try {
+      const chunks = await runSearch({ deckId: id as any, query: queryText, k: 4 });
+      if (!chunks || chunks.length === 0) return null;
+      return chunks
+        .map((c: any, i: number) => `[${i + 1}] (${c.source}) ${c.text}`)
+        .join("\n\n");
+    } catch {
+      return null;
+    }
+  };
 
   const [chatSummary, setChatSummary] = useState<string>("");
 
@@ -171,6 +185,7 @@ export default function PlanPage() {
     setIsProcessing(true);
 
     try {
+      const contextChunks = await retrieveContext(msg);
       const res = await fetch("/api/plan-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,6 +200,7 @@ export default function PlanPage() {
           skill: (deck as any)?.designSkill || null,
           userMemory: memoryString || null,
           chatSummary: chatSummary || null,
+          contextChunks: contextChunks || null,
         }),
       });
 
@@ -243,6 +259,10 @@ export default function PlanPage() {
       setSlideStatus((s) => ({ ...s, [i]: "generating" }));
       setGeneratingIndex(i);
 
+      const contextChunks = await retrieveContext(
+        `${planItems[i].title} ${planItems[i].description}`,
+      );
+
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch(endpoint, {
@@ -257,6 +277,7 @@ export default function PlanPage() {
               deckId: id,
               skill: (deck as any)?.designSkill || null,
               userMemory: memoryString || null,
+              contextChunks: contextChunks || null,
             }),
           });
           const slideData = await res.json();

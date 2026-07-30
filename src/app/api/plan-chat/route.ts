@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       skill = null,
       userMemory = null,
       chatSummary = null,
+      contextChunks = null,
     } = await req.json();
 
     if (!message) {
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
       skill,
       memory: userMemory,
       summary,
+      contextChunks,
     });
 
     const messages: ChatTurn[] = [{ role: "system", content: systemPrompt }];

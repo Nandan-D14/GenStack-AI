@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import FileUploader from "../../../components/FileUploader";
@@ -56,6 +56,8 @@ export default function NewDeckPage() {
 
   const router = useRouter();
   const runCreateDeck = useMutation(api.decks.create);
+  const runIngestUrl = useAction(api.rag.ingestUrl);
+  const runIngestStorage = useAction(api.rag.ingestStorage);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -79,6 +81,27 @@ export default function NewDeckPage() {
         slidesCount: slidesCount,
         designSkill: designSkill || undefined,
       });
+
+      // Ingest attached sources (URL / uploaded file) for retrieval during generation.
+      try {
+        const ingestions: Promise<any>[] = [];
+        if (attachedUrl) {
+          ingestions.push(runIngestUrl({ deckId: newDeckId, url: attachedUrl }));
+        }
+        if (uploadedFile) {
+          ingestions.push(
+            runIngestStorage({
+              deckId: newDeckId,
+              storageId: uploadedFile.storageId,
+              fileName: uploadedFile.name,
+            }),
+          );
+        }
+        if (ingestions.length) await Promise.allSettled(ingestions);
+      } catch {
+        // Non-fatal: proceed to planning even if ingestion fails.
+      }
+
       router.push(`/deck/${newDeckId}/plan`);
     } catch (e) {
       console.error(e);

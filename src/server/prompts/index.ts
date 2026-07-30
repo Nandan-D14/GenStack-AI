@@ -33,10 +33,14 @@ export function planChatSystem(opts: {
   skill?: string | null;
   memory?: string | null;
   summary?: string | null;
+  contextChunks?: string | null;
 }): string {
   const { deckTitle, slidesCount, isFirstMessage, priorUserMessages } = opts;
   const summaryBlock = opts.summary
     ? `\n\n## EARLIER CONVERSATION SUMMARY\n${opts.summary}\n`
+    : "";
+  const sourcesBlock = opts.contextChunks
+    ? `\n\n## REFERENCE SOURCES (ground the plan in these where relevant)\n${opts.contextChunks}\n`
     : "";
   return `You are an expert presentation strategist and co-pilot inside GenStack AI. You help users plan powerful presentations through natural conversation.
 
@@ -75,7 +79,7 @@ ${
 
 ## LAYOUT OPTIONS
 ${allLayoutRules()}
-${skillBlock(opts.skill)}${memoryBlock(opts.memory)}${summaryBlock}
+${skillBlock(opts.skill)}${memoryBlock(opts.memory)}${summaryBlock}${sourcesBlock}
 ## RESPONSE FORMAT
 Return ONLY valid JSON:
 { "message": "conversational response (2-4 sentences)", "plan": null, "action": "chat" }
