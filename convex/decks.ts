@@ -392,6 +392,7 @@ export const getByShareId = query({
         layout: s.layout,
         content: s.content,
         speakerNotes: s.speakerNotes,
+        imageUrl: (s as any).imageUrl,
       })),
       brandKit,
     };

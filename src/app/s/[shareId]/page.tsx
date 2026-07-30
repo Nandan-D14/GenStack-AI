@@ -60,28 +60,37 @@ export default function PublicDeckPage() {
           return (
             <div
               key={i}
-              className="rounded-2xl border border-[#FFFFFF0D] overflow-hidden aspect-video flex flex-col p-10"
+              className="rounded-2xl border border-[#FFFFFF0D] overflow-hidden aspect-video flex flex-col p-10 relative"
               style={{ backgroundColor: bg, color: text }}
             >
-              <div className="w-14 h-1 rounded" style={{ backgroundColor: accent }} />
-              <h2
-                className={`font-bold tracking-tight mt-6 ${slide.layout === "title" ? "text-4xl" : "text-2xl"}`}
-              >
-                {slide.title}
-              </h2>
-              <ul className="mt-6 space-y-3 flex-1">
-                {bullets.map((b: string, bi: number) => (
-                  <li key={bi} className="flex items-start gap-3 text-lg">
-                    <span
-                      className="mt-2 w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: accent }}
-                    />
-                    <span style={{ opacity: 0.9 }}>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="text-xs" style={{ color: "#6C707A" }}>
-                {i + 1} / {deck.slides.length}
+              {slide.imageUrl && (
+                <img
+                  src={slide.imageUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover opacity-25"
+                />
+              )}
+              <div className="relative flex flex-col h-full">
+                <div className="w-14 h-1 rounded" style={{ backgroundColor: accent }} />
+                <h2
+                  className={`font-bold tracking-tight mt-6 ${slide.layout === "title" ? "text-4xl" : "text-2xl"}`}
+                >
+                  {slide.title}
+                </h2>
+                <ul className="mt-6 space-y-3 flex-1">
+                  {bullets.map((b: string, bi: number) => (
+                    <li key={bi} className="flex items-start gap-3 text-lg">
+                      <span
+                        className="mt-2 w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: accent }}
+                      />
+                      <span style={{ opacity: 0.9 }}>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="text-xs" style={{ color: "#6C707A" }}>
+                  {i + 1} / {deck.slides.length}
+                </div>
               </div>
             </div>
           );

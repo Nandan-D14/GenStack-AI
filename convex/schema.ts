@@ -57,6 +57,7 @@ export default defineSchema({
     title: v.string(),
     content: v.string(), // JSON string representing slide elements/bullets
     c1Dsl: v.optional(v.string()), // Thesys C1 single-slide artifact DSL
+    imageUrl: v.optional(v.string()), // on-topic slide visual (generated or sourced)
     visualSuggestion: v.string(), // "chart" | "image" | "icon" | "none"
     speakerNotes: v.optional(v.string()),
     isLocked: v.boolean(),

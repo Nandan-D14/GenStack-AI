@@ -476,6 +476,39 @@ export default function EditorPage() {
     });
   };
 
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const handleGenerateImage = async () => {
+    if (!activeSlide) return;
+    setImageGenerating(true);
+    try {
+      let firstBullet = "";
+      try {
+        const arr = JSON.parse(activeSlide.content || "[]");
+        if (Array.isArray(arr) && arr[0]) firstBullet = String(arr[0]);
+      } catch {}
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `${deck?.title || ""} — ${activeSlide.title} ${firstBullet}`.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        await runUpdateSlideContent({ id: activeSlide._id, imageUrl: data.url });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setImageGenerating(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!activeSlide) return;
+    await runUpdateSlideContent({ id: activeSlide._id, imageUrl: "" });
+  };
+
   const handleAddSlide = async () => {
     if (!id) return;
     const nextOrder =
@@ -1474,11 +1507,20 @@ export default function EditorPage() {
                   });
                 }}
               >
-                {renderCanvasSlide(
-                  activeSlide,
-                  getActiveBullets(activeSlide),
-                  true,
+                {(activeSlide as any)?.imageUrl && (
+                  <img
+                    src={(activeSlide as any).imageUrl}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none"
+                  />
                 )}
+                <div className="relative w-full h-full flex flex-col justify-center">
+                  {renderCanvasSlide(
+                    activeSlide,
+                    getActiveBullets(activeSlide),
+                    true,
+                  )}
+                </div>
               </div>
             )}
 
@@ -1600,6 +1642,26 @@ export default function EditorPage() {
                 onPress={() => setShowSpeakerNotes(!showSpeakerNotes)}
               >
                 Notes
+              </Button>
+
+              {/* AI Image button */}
+              <Button
+                size="sm"
+                variant="flat"
+                isLoading={imageGenerating}
+                className={`h-8 px-3 text-[11px] font-medium rounded-lg transition-all ${
+                  (activeSlide as any)?.imageUrl
+                    ? "bg-emerald-600/80 text-white"
+                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                }`}
+                startContent={!imageGenerating && <Wand2 className="w-3.5 h-3.5" />}
+                onPress={
+                  (activeSlide as any)?.imageUrl
+                    ? handleRemoveImage
+                    : handleGenerateImage
+                }
+              >
+                {(activeSlide as any)?.imageUrl ? "Remove Image" : "AI Image"}
               </Button>
 
               <Divider orientation="vertical" className="bg-zinc-800 h-5" />
