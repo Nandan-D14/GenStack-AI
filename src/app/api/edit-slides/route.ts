@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
+import { generateStructured } from "@/server/generate";
+import { SlidesResponseSchema, normalizeSlidesPayload } from "@/server/schemas";
 
 
 
@@ -13,8 +14,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const { client, model } = getAIClient();
 
     const systemPrompt = `You are an expert presentation editor. You will receive existing slides as JSON and an edit instruction.
 Apply the edit instruction precisely and return the COMPLETE updated slides array.
@@ -39,49 +38,27 @@ Each slide object must have:
 - "bullets": array of strings
 - "speakerNotes": string
 
-Return ONLY a valid JSON array of slide objects. No markdown fences, no explanation.`;
+Return ONLY a valid JSON object with a "slides" array of slide objects. No markdown fences, no explanation.`;
 
-    // Retry up to 2 times
-    let lastError = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Here are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`,
-            },
-          ],
-        });
+    try {
+      const parsed = await generateStructured({
+        task: "edit-slides",
+        schema: SlidesResponseSchema,
+        schemaName: "SlidesResponse",
+        system: systemPrompt,
+        user: `Here are the current slides:\n\n${JSON.stringify(slides, null, 2)}\n\nEdit instruction: ${prompt}`,
+        maxRetries: 2,
+        transform: normalizeSlidesPayload,
+      });
 
-        const rawContent = response.choices[0]?.message?.content || "";
-        const updatedSlides = extractJson(rawContent);
-
-        if (!Array.isArray(updatedSlides)) {
-          throw new Error("Response is not an array");
-        }
-
-        return NextResponse.json({ slides: updatedSlides });
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(
-          `Edit slides attempt ${attempt + 1} failed:`,
-          lastError
-        );
-        if (attempt < 1) {
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-      }
+      return NextResponse.json({ slides: parsed.slides });
+    } catch (err: any) {
+      console.error("Edit slides failed after retries:", err?.message);
+      return NextResponse.json(
+        { error: "Failed to edit slides. Please try again." },
+        { status: 503 }
+      );
     }
-
-    // All retries failed
-    console.error("Edit slides failed after retries:", lastError);
-    return NextResponse.json(
-      { error: "Failed to edit slides. Please try again." },
-      { status: 503 }
-    );
   } catch (error: any) {
     console.error("Error editing slides:", error);
     return NextResponse.json(

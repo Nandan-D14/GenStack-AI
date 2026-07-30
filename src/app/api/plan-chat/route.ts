@@ -1,30 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
-
-type PlanItem = {
-  id: string;
-  order: number;
-  title: string;
-  layout:
-    | "title"
-    | "content"
-    | "data"
-    | "chart"
-    | "quote"
-    | "two_column"
-    | "closing";
-  description: string;
-};
+import { generateStructured } from "@/server/generate";
+import { PlanChatResponseSchema, type PlanItem } from "@/server/schemas";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
-};
-
-type PlanChatResponse = {
-  message: string;
-  plan: PlanItem[] | null;
-  action: "chat" | "plan_create" | "plan_update";
 };
 
 function normalizePlan(plan: any[]): PlanItem[] {
@@ -52,8 +32,6 @@ export async function POST(req: NextRequest) {
     if (!message) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
-
-    const { client, model } = getAIClient();
 
     const hasPlan = currentPlan && Array.isArray(currentPlan) && currentPlan.length > 0;
     const isFirstMessage = chatHistory.length === 0;
@@ -147,44 +125,29 @@ OR when creating/updating a plan:
     }
     messages.push({ role: "user", content: userContent });
 
-    // Try LLM with retry
-    let result: PlanChatResponse | null = null;
-    let lastError = "";
+    try {
+      const parsed = await generateStructured({
+        task: "plan-chat",
+        schema: PlanChatResponseSchema,
+        schemaName: "PlanChatResponse",
+        messages,
+        maxRetries: 2,
+      });
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages,
-        });
-
-        const raw = response.choices[0]?.message?.content || "";
-        const parsed = extractJson(raw);
-
-        result = {
-          message: parsed.message || "I'm ready to help with your presentation.",
-          plan: parsed.plan ? normalizePlan(parsed.plan) : null,
-          action: parsed.action || "chat",
-        };
-
-        // Validate action
-        if (!["chat", "plan_create", "plan_update"].includes(result.action)) {
-          result.action = result.plan ? "plan_create" : "chat";
-        }
-
-        break; // Success
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(`Plan chat attempt ${attempt + 1} failed:`, lastError);
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-        }
+      const plan = parsed.plan ? normalizePlan(parsed.plan) : null;
+      let action = parsed.action || (plan ? "plan_create" : "chat");
+      if (!["chat", "plan_create", "plan_update"].includes(action)) {
+        action = plan ? "plan_create" : "chat";
       }
-    }
 
-    if (!result) {
+      return NextResponse.json({
+        message: parsed.message,
+        plan,
+        action,
+      });
+    } catch (err: any) {
       // All retries failed — return a graceful chat response
-      console.error("Plan chat failed after 3 attempts:", lastError);
+      console.error("Plan chat failed after retries:", err?.message);
       return NextResponse.json({
         message:
           "I'm having trouble connecting right now. Could you try sending your message again in a moment?",
@@ -192,8 +155,6 @@ OR when creating/updating a plan:
         action: "chat",
       });
     }
-
-    return NextResponse.json(result);
   } catch (error: any) {
     console.error("Plan chat error:", error);
     return NextResponse.json(

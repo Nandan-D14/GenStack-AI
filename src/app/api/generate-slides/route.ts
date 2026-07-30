@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
+import { generateStructured } from "@/server/generate";
+import { SlidesResponseSchema, normalizeSlidesPayload } from "@/server/schemas";
 
 
 
@@ -77,7 +78,7 @@ function generateFallbackSlides(prompt: string, tone: string, audience: string):
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, deckId, tone, audience } = await req.json();
+    const { prompt, deckId, tone, audience, slidesCount: requestedCount } = await req.json();
 
     if (!prompt || !deckId) {
       return NextResponse.json(
@@ -86,9 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { client, model } = getAIClient();
-
-    const slidesCount = 7;
+    const slidesCount = Math.min(Math.max(Number(requestedCount) || 7, 3), 30);
 
     const systemPrompt = `You are an expert presentation designer. Create exactly ${slidesCount} slides for a professional presentation.
 
@@ -124,51 +123,25 @@ Return ONLY a valid JSON object. No markdown, no explanation:
   ]
 }`;
 
-    // Retry up to 3 times
-    let lastError = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Generate a ${slidesCount}-slide presentation about: "${prompt}"`,
-            },
-          ],
-        });
+    try {
+      const parsed = await generateStructured({
+        task: "generate-slides",
+        schema: SlidesResponseSchema,
+        schemaName: "SlidesResponse",
+        system: systemPrompt,
+        user: `Generate a ${slidesCount}-slide presentation about: "${prompt}"`,
+        maxRetries: 2,
+        transform: normalizeSlidesPayload,
+      });
 
-        const rawContent = response.choices[0]?.message?.content || "";
-        const parsed = extractJson(rawContent);
-
-        let slidesJson: any[];
-        if (Array.isArray(parsed)) {
-          slidesJson = parsed;
-        } else if (parsed && Array.isArray(parsed.slides)) {
-          slidesJson = parsed.slides;
-        } else {
-          throw new Error("Response does not contain a slides array");
-        }
-
-        return NextResponse.json({ slides: slidesJson });
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(
-          `Slide generation attempt ${attempt + 1} failed:`,
-          lastError
-        );
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-        }
-      }
+      return NextResponse.json({ slides: parsed.slides });
+    } catch (err: any) {
+      // All retries failed — use high-quality fallback
+      console.warn("All LLM retries exhausted, using fallback slides:", err?.message);
+      return NextResponse.json({
+        slides: generateFallbackSlides(prompt, tone, audience),
+      });
     }
-
-    // All retries failed — use high-quality fallback
-    console.warn("All LLM retries exhausted, using fallback slides.");
-    return NextResponse.json({
-      slides: generateFallbackSlides(prompt, tone, audience),
-    });
   } catch (error: any) {
     console.error("Error generating slides:", error);
     return NextResponse.json(

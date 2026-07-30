@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
+import { generateStructured, StructuredGenerationError } from "@/server/generate";
+import { SlideResponseSchema } from "@/server/schemas";
 
 type PlanItem = {
   id: string;
@@ -150,8 +151,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { client, model } = getAIClient();
-
     const { system, user } = buildSlidePrompt(
       planItem,
       deckContext || "Presentation",
@@ -160,69 +159,42 @@ export async function POST(req: NextRequest) {
       Array.isArray(allPlanItems) ? allPlanItems : [planItem]
     );
 
-    // Retry up to 3 times
-    let lastError = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-        });
+    try {
+      const result = await generateStructured({
+        task: "generate-single-slide",
+        schema: SlideResponseSchema,
+        schemaName: "Slide",
+        system,
+        user,
+        maxRetries: 2,
+        transform: (c: any) => {
+          if (c && typeof c === "object") {
+            if (!c.layout) c.layout = planItem.layout;
+            if (Array.isArray(c.bullets)) {
+              c.bullets = c.bullets.filter(
+                (b: any) => typeof b === "string" && b.trim().length > 0,
+              );
+            }
+            if (!c.speakerNotes) c.speakerNotes = `Key points about ${planItem.title}.`;
+          }
+          return c;
+        },
+      });
 
-        const raw = response.choices[0]?.message?.content || "";
-        const result = extractJson(raw);
-
-        // Validate the result
-        if (!result.title || !Array.isArray(result.bullets)) {
-          throw new Error(
-            "Invalid slide format: missing title or bullets array"
-          );
-        }
-
-        // Ensure bullets are non-empty strings
-        result.bullets = result.bullets.filter(
-          (b: any) => typeof b === "string" && b.trim().length > 0
-        );
-
-        if (result.bullets.length === 0) {
-          throw new Error("Generated slide has no valid bullets");
-        }
-
-        // Ensure layout matches
-        result.layout = result.layout || planItem.layout;
-
-        // Ensure speaker notes exist
-        result.speakerNotes =
-          result.speakerNotes || `Key points about ${planItem.title}.`;
-
-        return NextResponse.json(result);
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(
-          `Slide generation attempt ${attempt + 1} failed for "${planItem.title}":`,
-          lastError
-        );
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-        }
-      }
+      return NextResponse.json(result);
+    } catch (err) {
+      console.error(
+        `Slide generation failed for "${planItem.title}":`,
+        err instanceof StructuredGenerationError ? err.message : err,
+      );
+      return NextResponse.json(
+        {
+          error: `Failed to generate slide "${planItem.title}" after multiple attempts. Please try again.`,
+          retryable: true,
+        },
+        { status: 503 }
+      );
     }
-
-    // All retries failed — return error
-    console.error(
-      `Slide generation failed after 3 attempts for "${planItem.title}":`,
-      lastError
-    );
-    return NextResponse.json(
-      {
-        error: `Failed to generate slide "${planItem.title}" after multiple attempts. Please try again.`,
-        retryable: true,
-      },
-      { status: 503 }
-    );
   } catch (error: any) {
     console.error("Generate single slide error:", error);
     return NextResponse.json(

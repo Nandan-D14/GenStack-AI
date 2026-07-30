@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
+import { generateStructured, type ChatTurn } from "@/server/generate";
+import { ChatSlideResponseSchema } from "@/server/schemas";
 
 
 
@@ -16,8 +17,6 @@ export async function POST(req: NextRequest) {
     if (!message) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
-
-    const { client, model } = getAIClient();
 
     // Parse current slide bullets
     let bulletsParsed: string[] = [];
@@ -81,10 +80,7 @@ Quality rules for slide edits:
 - Match the presentation's tone and audience`;
 
     // Build messages with proper roles
-    const messages: {
-      role: "system" | "user" | "assistant";
-      content: string;
-    }[] = [{ role: "system", content: systemPrompt }];
+    const messages: ChatTurn[] = [{ role: "system", content: systemPrompt }];
 
     // Add recent chat history (last 6 messages)
     for (const msg of history.slice(-6)) {
@@ -94,43 +90,27 @@ Quality rules for slide edits:
     }
     messages.push({ role: "user", content: message });
 
-    // Retry up to 2 times
-    let lastError = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages,
-        });
+    try {
+      const result = await generateStructured({
+        task: "chat-slide",
+        schema: ChatSlideResponseSchema,
+        schemaName: "ChatSlideResponse",
+        messages,
+        maxRetries: 2,
+      });
 
-        const raw = response.choices[0]?.message?.content || "";
-        const result = extractJson(raw);
-
-        return NextResponse.json({
-          reply:
-            result.reply ||
-            "I understand. Could you tell me more about what you'd like to change?",
-          slideUpdate: result.slideUpdate || null,
-        });
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(
-          `Chat slide attempt ${attempt + 1} failed:`,
-          lastError
-        );
-        if (attempt < 1) {
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-      }
+      return NextResponse.json({
+        reply: result.reply,
+        slideUpdate: result.slideUpdate ?? null,
+      });
+    } catch (err: any) {
+      console.error("Chat slide failed after retries:", err?.message);
+      return NextResponse.json({
+        reply:
+          "I'm having trouble processing that right now. Could you try rephrasing your request?",
+        slideUpdate: null,
+      });
     }
-
-    // All retries failed
-    console.error("Chat slide failed after retries:", lastError);
-    return NextResponse.json({
-      reply:
-        "I'm having trouble processing that right now. Could you try rephrasing your request?",
-      slideUpdate: null,
-    });
   } catch (error: any) {
     console.error("Chat slide error:", error);
     return NextResponse.json(
