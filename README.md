@@ -25,13 +25,13 @@ Users can:
 
 ## Tech Stack
 
-* **Frontend Framework**: Next.js 15+ (App Router), React, TypeScript
+* **Frontend Framework**: Next.js 15+ (App Router), React 19, TypeScript
 * **UI Components**: **Hero UI** (formerly NextUI) & Tailwind CSS
 * **Database & Backend**: **Convex DB** (Reactive Database with built-in WebSockets)
-* **Object Storage**: **Bucketblaze** (Backblaze B2 with S3-compatible API)
-* **AI Presentation Layer**: **Thesys C1** API (Slide outline, layouts, and content generation)
-* **Export Engine**: `pptxgenjs` (nodebuffer presentation builder)
-* **Auth**: Auth.js (NextAuth) / Custom provider integrated with Convex
+* **Object Storage**: **Convex File Storage** (Bucketblaze is currently disconnected/stubbed)
+* **AI Presentation Layer**: **Thesys C1** API (Slide outline, layouts, and content generation) and **TokenRouter** (Minimax-M3 model for custom generation)
+* **Export Engine**: `pptxgenjs` (editable PowerPoint presentation builder)
+* **Auth**: **Clerk** (fully integrated with Convex via `ConvexProviderWithClerk`)
 
 ---
 
@@ -71,7 +71,7 @@ To launch a real AI PPT SaaS, we focus on these **10 core pages**:
 ### 3. Design & Media
 * **Theme & Color Selection**: Select custom color palettes and typography.
 * **Brand Kit**: Upload logos, choose primary/secondary colors, and lock fonts to keep decks on-brand automatically.
-* **Media Library**: Upload local images to Bucketblaze and access them inside slides.
+* **Media Library**: Upload local images to Convex File Storage and access them inside slides.
 
 ### 4. Export & Sharing
 * **Editable PowerPoint (PPTX)**: High-quality, editable vector files using `pptxgenjs`.
@@ -94,6 +94,6 @@ To launch a real AI PPT SaaS, we focus on these **10 core pages**:
 
 ## Repository & Setup
 
-* **Status**: Active Development — Transitioning to Convex & Bucketblaze
+* **Status**: Active Development — Built on Convex & Clerk
 * **GitHub**: [github.com/Nandan-D14/GenStack-AI](https://github.com/Nandan-D14/GenStack-AI)
 * **License**: MIT

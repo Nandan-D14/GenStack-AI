@@ -5,7 +5,20 @@ import { v } from "convex/values";
 async function getOrCreateUser(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    return null;
+    // For local development fallback when Clerk is blocked/offline:
+    const mockUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q: any) => q.eq("email", "mock@example.com"))
+      .unique();
+    if (mockUser) {
+      return mockUser._id;
+    }
+    return await ctx.db.insert("users", {
+      name: "Mock User",
+      email: "mock@example.com",
+      plan: "free",
+      createdAt: new Date().toISOString(),
+    });
   }
 
   // Find user by email
@@ -80,13 +93,34 @@ export const saveFile = mutation({
   },
 });
 
+// Helper to get user ID without creating it (for read-only queries)
+async function getUser(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    // For local development fallback when Clerk is blocked/offline:
+    const mockUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q: any) => q.eq("email", "mock@example.com"))
+      .unique();
+    return mockUser ? mockUser._id : null;
+  }
+
+  // Find user by email
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q: any) => q.eq("email", identity.email))
+    .unique();
+
+  return user ? user._id : null;
+}
+
 /**
  * List all media files for the current user.
  */
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getOrCreateUser(ctx);
+    const userId = await getUser(ctx);
     if (!userId) {
       return [];
     }

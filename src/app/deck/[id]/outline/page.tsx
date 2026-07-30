@@ -17,17 +17,8 @@ export default function OutlinePage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
-  const runGenerateOutline = useMutation(api.decks.generateOutline);
-
   const handleGenerate = async () => {
-    setIsGenerating(true);
-    try {
-      await runGenerateOutline({ deckId: id as any, prompt: deck?.title || "presentation" });
-      router.push(`/deck/${id}/editor`);
-    } catch (e) {
-      console.error(e);
-      setIsGenerating(false);
-    }
+    router.push(`/deck/${id}/editor?generate=true`);
   };
 
   const outline = deck?.slides?.length ? [
@@ -37,7 +28,29 @@ export default function OutlinePage() {
     { section: "Traction", slides: deck.slides.slice(6, 9) },
     { section: "Business Model", slides: deck.slides.slice(9, 11) },
     { section: "Team & Ask", slides: deck.slides.slice(11, 13) },
-  ] : [];
+  ] : [
+    {
+      section: "1. Hook & Introduction",
+      slides: [{ _id: "preview-1", title: deck?.title || "AI Fashion Wardrobe Pitch", layout: "title" }]
+    },
+    {
+      section: "2. The Problem",
+      slides: [{ _id: "preview-2", title: "Why E-commerce Returns Cost Retailers $550B", layout: "content" }]
+    },
+    {
+      section: "3. The Solution",
+      slides: [{ _id: "preview-3", title: "Personal AI Stylist & Virtual Fit Try-On", layout: "content" }]
+    },
+    {
+      section: "4. Market & Traction",
+      slides: [{ _id: "preview-4", title: "A Growing $890B Global Fashion Opportunity", layout: "data" }]
+    },
+    {
+      section: "5. Business Model & Close",
+      slides: [{ _id: "preview-5", title: "Subscription Model & Seed Raise Ask", layout: "closing" }]
+    }
+  ];
+
 
   return (
     <div className="min-h-screen bg-background">

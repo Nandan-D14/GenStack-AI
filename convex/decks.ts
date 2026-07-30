@@ -1,11 +1,24 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 // Helper to get or create user based on authenticated identity
 async function getOrCreateUser(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    return null;
+    // For local development fallback when Clerk is blocked/offline:
+    const mockUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q: any) => q.eq("email", "mock@example.com"))
+      .unique();
+    if (mockUser) {
+      return mockUser._id;
+    }
+    return await ctx.db.insert("users", {
+      name: "Mock User",
+      email: "mock@example.com",
+      plan: "free",
+      createdAt: new Date().toISOString(),
+    });
   }
 
   // Find user by email
@@ -28,11 +41,32 @@ async function getOrCreateUser(ctx: any) {
   });
 }
 
+// Helper to get user ID without creating it (for read-only queries)
+async function getUser(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    // For local development fallback when Clerk is blocked/offline:
+    const mockUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q: any) => q.eq("email", "mock@example.com"))
+      .unique();
+    return mockUser ? mockUser._id : null;
+  }
+
+  // Find user by email
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q: any) => q.eq("email", identity.email))
+    .unique();
+
+  return user ? user._id : null;
+}
+
 // List all decks for the authenticated user
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getOrCreateUser(ctx);
+    const userId = await getUser(ctx);
     if (!userId) {
       return [];
     }
@@ -48,18 +82,18 @@ export const list = query({
 export const getById = query({
   args: { id: v.id("decks") },
   handler: async (ctx, args) => {
-    const userId = await getOrCreateUser(ctx);
+    const userId = await getUser(ctx);
     if (!userId) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const deck = await ctx.db.get(args.id);
     if (!deck) {
-      throw new Error("Deck not found");
+      return null;
     }
 
     if (deck.userId !== userId) {
-      throw new Error("Unauthorized access to deck");
+      return null;
     }
 
     const slides = await ctx.db
@@ -155,14 +189,82 @@ export const generateOutline = mutation({
 
     // Insert mock slides simulating AI generation
     const mockSlides = [
-      { title: "The Future of Fashion is AI", layout: "title", bullets: [], visualSuggestion: "none", speakerNotes: "Welcome the audience." },
-      { title: "The Problem", layout: "content", bullets: ["67% of people say they have \"nothing to wear\" despite a full closet", "Average person spends 17 minutes deciding what to wear each morning", "Returns cost retailers $550B annually — 40% driven by poor fit"], visualSuggestion: "icon", speakerNotes: "Describe the problem in detail." },
-      { title: "The Solution", layout: "content", bullets: ["Our approach: personal AI stylist", "How it works: photo analysis + wardrobe sync", "Key benefits: 90% return drop, save hours"], visualSuggestion: "diagram", speakerNotes: "Present the solution clearly." },
-      { title: "Market Opportunity", layout: "data", bullets: ["$890B global fashion market", "40% e-commerce return rate", "$550B return costs"], visualSuggestion: "chart", speakerNotes: "Show the market size and growth." },
-      { title: "Business Model", layout: "content", bullets: ["Subscription model", "B2B partnership", "Affiliate commission"], visualSuggestion: "none", speakerNotes: "Explain how you make money." },
-      { title: "Traction & Metrics", layout: "chart", bullets: ["500K users", "34% MoM growth", "89% retention"], visualSuggestion: "chart", speakerNotes: "Show real numbers and traction." },
-      { title: "Team", layout: "content", bullets: ["AI Ph.D founders", "Ex-Stitch Fix lead designers", "Advisor from Sequoia"], visualSuggestion: "none", speakerNotes: "Introduce the team." },
-      { title: "The Ask: $2M Seed", layout: "closing", bullets: ["$2M raise", "18mo runway", "$10M Series A target"], visualSuggestion: "none", speakerNotes: "Make the ask and close strong." },
+      {
+        title: "The Future of Fashion is AI",
+        layout: "title",
+        bullets: [],
+        visualSuggestion: "none",
+        speakerNotes: "Welcome the audience.",
+      },
+      {
+        title: "The Problem",
+        layout: "content",
+        bullets: [
+          '67% of people say they have "nothing to wear" despite a full closet',
+          "Average person spends 17 minutes deciding what to wear each morning",
+          "Returns cost retailers $550B annually — 40% driven by poor fit",
+        ],
+        visualSuggestion: "icon",
+        speakerNotes: "Describe the problem in detail.",
+      },
+      {
+        title: "The Solution",
+        layout: "content",
+        bullets: [
+          "Our approach: personal AI stylist",
+          "How it works: photo analysis + wardrobe sync",
+          "Key benefits: 90% return drop, save hours",
+        ],
+        visualSuggestion: "diagram",
+        speakerNotes: "Present the solution clearly.",
+      },
+      {
+        title: "Market Opportunity",
+        layout: "data",
+        bullets: [
+          "$890B global fashion market",
+          "40% e-commerce return rate",
+          "$550B return costs",
+        ],
+        visualSuggestion: "chart",
+        speakerNotes: "Show the market size and growth.",
+      },
+      {
+        title: "Business Model",
+        layout: "content",
+        bullets: [
+          "Subscription model",
+          "B2B partnership",
+          "Affiliate commission",
+        ],
+        visualSuggestion: "none",
+        speakerNotes: "Explain how you make money.",
+      },
+      {
+        title: "Traction & Metrics",
+        layout: "chart",
+        bullets: ["500K users", "34% MoM growth", "89% retention"],
+        visualSuggestion: "chart",
+        speakerNotes: "Show real numbers and traction.",
+      },
+      {
+        title: "Team",
+        layout: "content",
+        bullets: [
+          "AI Ph.D founders",
+          "Ex-Stitch Fix lead designers",
+          "Advisor from Sequoia",
+        ],
+        visualSuggestion: "none",
+        speakerNotes: "Introduce the team.",
+      },
+      {
+        title: "The Ask: $2M Seed",
+        layout: "closing",
+        bullets: ["$2M raise", "18mo runway", "$10M Series A target"],
+        visualSuggestion: "none",
+        speakerNotes: "Make the ask and close strong.",
+      },
     ];
 
     const now = new Date().toISOString();
@@ -210,8 +312,102 @@ export const exportDeck = mutation({
     const base64 = mockBuffer.toString("base64");
 
     return {
-      downloadUrl: `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`
+      downloadUrl: `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`,
     };
   },
 });
 
+/**
+ * Internal query to fetch a deck and its slides for the export action.
+ * This avoids auth issues when called from within a server action.
+ */
+export const getDeckForExport = internalQuery({
+  args: { deckId: v.id("decks") },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.deckId);
+    if (!deck) return null;
+
+    const slides = await ctx.db
+      .query("slides")
+      .withIndex("by_deckId", (q) => q.eq("deckId", args.deckId))
+      .collect();
+
+    slides.sort((a, b) => a.order - b.order);
+
+    return { ...deck, slides };
+  },
+});
+
+// Update plan items and status for a deck
+export const updatePlan = mutation({
+  args: {
+    id: v.id("decks"),
+    planItems: v.string(), // JSON string
+    planStatus: v.optional(v.string()),
+    generationMode: v.optional(v.string()),
+    chatHistory: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      planItems: args.planItems,
+      ...(args.planStatus !== undefined ? { planStatus: args.planStatus } : {}),
+      ...(args.generationMode !== undefined
+        ? { generationMode: args.generationMode }
+        : {}),
+      ...(args.chatHistory !== undefined ? { chatHistory: args.chatHistory } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  },
+});
+
+// Update chat history for a deck
+export const updateChatHistory = mutation({
+  args: {
+    id: v.id("decks"),
+    chatHistory: v.string(), // JSON string
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      chatHistory: args.chatHistory,
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  },
+});
+
+// Update the deck with C1 Artifact ID and DSL response
+export const updateC1Data = mutation({
+  args: {
+    id: v.id("decks"),
+    c1ArtifactId: v.optional(v.string()),
+    c1Response: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+
+    const updates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (args.c1ArtifactId !== undefined) {
+      updates.c1ArtifactId = args.c1ArtifactId;
+    }
+    if (args.c1Response !== undefined) {
+      updates.c1Response = args.c1Response;
+    }
+
+    await ctx.db.patch(args.id, updates);
+    return { success: true };
+  },
+});

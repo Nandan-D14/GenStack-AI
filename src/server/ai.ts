@@ -1,13 +1,111 @@
 import OpenAI from "openai"
 
-const apiKey = process.env.OPENAI_API_KEY || "sk-AOt67meuELDInKqIzth57o1PvyyZ3O8tz5ZjJ21Fwz2sHkw0";
-const baseURL = process.env.OPENAI_BASE_URL || "https://api.tokenrouter.com/v1";
-const modelName = process.env.OPENAI_MODEL || "MiniMax-M3";
+/**
+ * Robustly extracts a JSON object or array from LLM output that may contain
+ * surrounding conversational text, markdown fences, or other non-JSON content.
+ */
+export function extractJson(raw: string): any {
+  const text = raw.trim();
 
-const openai = new OpenAI({
-  apiKey,
-  baseURL,
-})
+  // 1. Direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // 2. Strip markdown fences
+  if (text.startsWith("```")) {
+    const stripped = text
+      .replace(/^```(?:json)?\s*\n?/, "")
+      .replace(/\n?```\s*$/, "");
+    try {
+      return JSON.parse(stripped);
+    } catch {}
+  }
+
+  // 3. Find JSON object in text (first { to matching })
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(text.slice(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  // 4. Find JSON array in text (first [ to matching ])
+  const firstBracket = text.indexOf("[");
+  const lastBracket = text.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try {
+      return JSON.parse(text.slice(firstBracket, lastBracket + 1));
+    } catch {}
+  }
+
+  throw new Error(
+    `Could not extract valid JSON from response: "${text.slice(0, 120)}..."`
+  );
+}
+
+export function getAIClient(): { client: any; model: string } {
+  const nvidiaKey = process.env.NVIDIA_API_KEY;
+  const nvidiaBase = process.env.NVIDIA_BASE_URL;
+  const nvidiaModel = process.env.NVIDIA_MODEL || "minimaxai/minimax-m3";
+
+  if (nvidiaKey && nvidiaBase) {
+    // Custom wrapper that mimics OpenAI client behavior using native fetch
+    const client = {
+      baseURL: nvidiaBase,
+      chat: {
+        completions: {
+          create: async (params: any) => {
+            const endpoint = `${nvidiaBase}/chat/completions`;
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${nvidiaKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: params.model,
+                messages: params.messages,
+                temperature: params.temperature ?? 1.0,
+                top_p: params.top_p ?? 0.95,
+                max_tokens: params.max_tokens ?? 4000,
+                response_format: params.response_format,
+              }),
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`Nvidia API error (${res.status}): ${errText}`);
+            }
+
+            const data = await res.json();
+            return data;
+          }
+        }
+      }
+    };
+
+    return {
+      client,
+      model: nvidiaModel,
+    };
+  }
+
+  const apiKey = process.env.CASTAI_API_KEY || process.env.TOKENROUTER_API_KEY || "";
+  const baseURL = "https://llm.kimchi.dev/openai/v1";
+  const modelName = "minimax-m3";
+
+  return {
+    client: new OpenAI({
+      apiKey,
+      baseURL,
+    }),
+    model: modelName,
+  };
+}
+
+const { client: openai, model: modelName } = getAIClient();
 
 const MOCK_OUTLINE = (prompt: string) => ({
   title: "AI-Generated Deck",
