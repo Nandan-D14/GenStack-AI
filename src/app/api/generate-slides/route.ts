@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateStructured } from "@/server/generate";
 import { SlidesResponseSchema, normalizeSlidesPayload } from "@/server/schemas";
+import { generateSlidesSystem } from "@/server/prompts";
 
 
 
@@ -78,7 +79,7 @@ function generateFallbackSlides(prompt: string, tone: string, audience: string):
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, deckId, tone, audience, slidesCount: requestedCount } = await req.json();
+    const { prompt, deckId, tone, audience, slidesCount: requestedCount, skill } = await req.json();
 
     if (!prompt || !deckId) {
       return NextResponse.json(
@@ -89,39 +90,12 @@ export async function POST(req: NextRequest) {
 
     const slidesCount = Math.min(Math.max(Number(requestedCount) || 7, 3), 30);
 
-    const systemPrompt = `You are an expert presentation designer. Create exactly ${slidesCount} slides for a professional presentation.
-
-CONTENT QUALITY RULES:
-- Every bullet point must contain SPECIFIC, substantive information — no filler
-- Content must be deeply relevant to the topic, not generic
-- Use concrete examples, real data formats, and actionable language
-
-LAYOUT-SPECIFIC RULES:
-- "title": 1-2 bullets as subtitle (the value proposition or tagline)
-- "content": 4-5 substantive key points, each 8-15 words
-- "two_column": 6 bullets — first 3 for left column, last 3 for right column  
-- "data": Bullets MUST be "NUMBER: Description" format (e.g., "$4.2B: Market size by 2027")
-- "chart": Bullets as timeline phases with metrics (e.g., "Phase 1: Launch with 50 pilot users, 12% adoption")
-- "quote": EXACTLY 2 bullets: ["The actual quote text", "— Author Name, Title"]
-- "closing": 3 specific action items or key takeaways
-
-STRUCTURE:
-- First slide: "title" layout
-- Last slide: "closing" layout
-- Tone: ${tone || "professional"}
-- Audience: ${audience || "general"}
-
-Return ONLY a valid JSON object. No markdown, no explanation:
-{
-  "slides": [
-    {
-      "title": "Specific Slide Title",
-      "layout": "title|content|data|chart|quote|two_column|closing",
-      "bullets": ["bullet 1", "bullet 2"],
-      "speakerNotes": "Natural-sounding 2-3 sentence script"
-    }
-  ]
-}`;
+    const systemPrompt = generateSlidesSystem({
+      slidesCount,
+      tone: tone || "professional",
+      audience: audience || "general",
+      skill: skill || null,
+    });
 
     try {
       const parsed = await generateStructured({

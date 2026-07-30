@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateStructured } from "@/server/generate";
 import { SlidesResponseSchema, normalizeSlidesPayload } from "@/server/schemas";
+import { editSlidesSystem } from "@/server/prompts";
 
 
 
 export async function POST(req: NextRequest) {
   try {
-    const { slides, prompt, deckId } = await req.json();
+    const { slides, prompt, deckId, skill } = await req.json();
 
     if (!slides || !prompt || !deckId) {
       return NextResponse.json(
@@ -15,30 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const systemPrompt = `You are an expert presentation editor. You will receive existing slides as JSON and an edit instruction.
-Apply the edit instruction precisely and return the COMPLETE updated slides array.
-
-EDIT TYPES YOU HANDLE:
-1. Tone Change — Rewrite all bullet text to match the requested tone (formal, casual, persuasive, etc.)
-2. Length Change — Add or remove bullets/slides to match requested length
-3. Content Addition — Add new slide(s) with appropriate layout, topic-specific title, and substantive bullets
-4. Content Deletion — Remove targeted slide(s) from the array
-5. Reordering — Move slides to a different position
-6. Content Rewrite — Rewrite bullets for clarity, impact, or a different angle
-
-QUALITY RULES:
-- Every bullet must contain specific, substantive information — no filler
-- Keep unaffected slides exactly the same
-- Only modify slides that the edit instruction targets
-- New slides should have layout-appropriate content
-
-Each slide object must have:
-- "title": string
-- "layout": one of "title", "content", "data", "chart", "quote", "closing", "two_column"
-- "bullets": array of strings
-- "speakerNotes": string
-
-Return ONLY a valid JSON object with a "slides" array of slide objects. No markdown fences, no explanation.`;
+    const systemPrompt = editSlidesSystem({ skill: skill || null });
 
     try {
       const parsed = await generateStructured({

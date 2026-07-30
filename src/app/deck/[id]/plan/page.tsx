@@ -159,6 +159,7 @@ export default function PlanPage() {
           tone: (deck as any)?.tone || "professional",
           audience: (deck as any)?.audience || "general",
           slidesCount: planItems.length || (deck as any)?.slidesCount || 10,
+          skill: (deck as any)?.designSkill || null,
         }),
       });
 
@@ -228,6 +229,7 @@ export default function PlanPage() {
               audience: (deck as any)?.audience || "general",
               allPlanItems: planItems,
               deckId: id,
+              skill: (deck as any)?.designSkill || null,
             }),
           });
           const slideData = await res.json();

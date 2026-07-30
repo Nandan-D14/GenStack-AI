@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -25,6 +25,22 @@ export default function NewDeckPage() {
   const [tone, setTone] = useState("Professional");
   const [audience, setAudience] = useState("Executive Board");
   const [slidesCount, setSlidesCount] = useState(12);
+  const [designSkill, setDesignSkill] = useState<string>("");
+  const [skills, setSkills] = useState<
+    { id: string; name: string; description: string }[]
+  >([]);
+
+  useEffect(() => {
+    fetch("/api/skills")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.skills)) {
+          setSkills(d.skills);
+          if (d.skills.length > 0) setDesignSkill(d.skills[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -61,6 +77,7 @@ export default function NewDeckPage() {
         objective: finalObjective || "General outline generation",
         audience: audience,
         slidesCount: slidesCount,
+        designSkill: designSkill || undefined,
       });
       router.push(`/deck/${newDeckId}/plan`);
     } catch (e) {
@@ -275,6 +292,32 @@ export default function NewDeckPage() {
                           <DropdownItem key="Investors">Investors</DropdownItem>
                         </DropdownMenu>
                       </Dropdown>
+
+                      {/* Design Skill Dropdown */}
+                      {skills.length > 0 && (
+                        <Dropdown classNames={{ content: "bg-[#0F1011] border border-[#FFFFFF1A] min-w-[200px]" }}>
+                          <DropdownTrigger>
+                            <div className="relative flex items-center h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-3 hover:bg-[#FFFFFF1A] transition-colors cursor-pointer">
+                              <span className="material-symbols-outlined text-[16px] text-[#A1A5AE] mr-1.5">brush</span>
+                              <span className="text-[13px] font-medium text-[#A1A5AE] pr-4 whitespace-nowrap max-w-[140px] truncate">
+                                {skills.find((s) => s.id === designSkill)?.name || "Design"}
+                              </span>
+                              <span className="material-symbols-outlined absolute right-2 text-[16px] text-[#A1A5AE] pointer-events-none">arrow_drop_down</span>
+                            </div>
+                          </DropdownTrigger>
+                          <DropdownMenu
+                            aria-label="Design skill selection"
+                            onAction={(key) => setDesignSkill(key as string)}
+                            itemClasses={{
+                              base: "text-[#A1A5AE] hover:text-[#F7F8F8] hover:bg-[#FFFFFF0A] data-[hover=true]:bg-[#FFFFFF0A] data-[hover=true]:text-[#F7F8F8]",
+                            }}
+                          >
+                            {skills.map((s) => (
+                              <DropdownItem key={s.id}>{s.name}</DropdownItem>
+                            ))}
+                          </DropdownMenu>
+                        </Dropdown>
+                      )}
 
                       {/* Slides Slider inside popover or inline */}
                       <div className="hidden sm:flex items-center gap-2 h-10 rounded-full bg-[#FFFFFF08] border border-[#FFFFFF0D] px-4">

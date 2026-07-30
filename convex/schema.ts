@@ -30,6 +30,7 @@ export default defineSchema({
     tone: v.string(), // "formal" | "casual" | "persuasive"
     audience: v.optional(v.string()),
     slidesCount: v.optional(v.float64()), // user-chosen target slide count
+    designSkill: v.optional(v.string()), // selected design skill/theme id
     status: v.string(), // "draft" | "published" | "archived"
     userId: v.id("users"),
     workspaceId: v.optional(v.id("workspaces")),
