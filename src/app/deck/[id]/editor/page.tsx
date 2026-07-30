@@ -51,7 +51,8 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
 export default function EditorPage() {
-  const { id } = useParams();
+  const rawParams = useParams();
+  const id = Array.isArray(rawParams.id) ? rawParams.id[0] : rawParams.id;
   const router = useRouter();
 
   // Selected slide index
@@ -95,7 +96,10 @@ export default function EditorPage() {
   }, []);
 
   // Convex Queries and Mutations
-  const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
+  const deck = useQuery(
+    api.decks.getById,
+    id && !id.includes("/") ? { id: id as any } : "skip",
+  );
   const slides = deck?.slides || [];
   const activeSlide = slides[selectedSlideIndex];
 

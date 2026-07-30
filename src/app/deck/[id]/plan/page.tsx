@@ -355,7 +355,8 @@ export default function PlanPage() {
     setPhase("done");
     setGeneratingIndex(-1);
     addMsg("assistant", "All slides generated successfully! Opening editor...");
-    setTimeout(() => router.push(`/deck/${id}/editor`), 1200);
+    const deckId = (deck as any)?._id || id;
+    setTimeout(() => router.push(`/deck/${deckId}/editor`), 1200);
   };
 
   const updateItem = (itemId: string, field: keyof PlanItem, value: string) => {
