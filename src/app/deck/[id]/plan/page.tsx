@@ -62,6 +62,10 @@ export default function PlanPage() {
   const [chatInput, setChatInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [generatingIndex, setGeneratingIndex] = useState(-1);
+  const [slideStatus, setSlideStatus] = useState<
+    Record<number, "queued" | "generating" | "done" | "failed">
+  >({});
+  const [completedCount, setCompletedCount] = useState(0);
   const [hasStartedResearch, setHasStartedResearch] = useState(false);
   const [generationMode, setGenerationMode] =
     useState<GenerationMode>("custom");
@@ -183,9 +187,13 @@ export default function PlanPage() {
   const handleApprove = async () => {
     if (planItems.length === 0 || phase !== "planning") return;
     setPhase("generating");
+    setCompletedCount(0);
+    setSlideStatus(
+      Object.fromEntries(planItems.map((_, i) => [i, "queued" as const])),
+    );
     addMsg(
       "assistant",
-      `Plan approved! Generating ${planItems.length} slides in ${generationMode === "template" ? "Thesys template" : "custom"} mode...`,
+      `Plan approved! Generating ${planItems.length} slides in parallel (${generationMode === "template" ? "Thesys template" : "custom"} mode)...`,
     );
 
     await runUpdatePlan({
@@ -195,19 +203,21 @@ export default function PlanPage() {
       generationMode,
     });
 
-    const generatedSlides: any[] = [];
+    const endpoint =
+      generationMode === "template"
+        ? "/api/generate-c1-single-slide"
+        : "/api/generate-single-slide";
 
-    for (let i = 0; i < planItems.length; i++) {
+    // Results are written by index so the deck order is preserved even though
+    // slides finish out of order.
+    const generatedSlides: any[] = new Array(planItems.length);
+
+    const generateOne = async (i: number) => {
+      setSlideStatus((s) => ({ ...s, [i]: "generating" }));
       setGeneratingIndex(i);
-      let slideGenerated = false;
 
-      // Retry up to 3 times per slide
-      for (let attempt = 0; attempt < 3 && !slideGenerated; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const endpoint =
-            generationMode === "template"
-              ? "/api/generate-c1-single-slide"
-              : "/api/generate-single-slide";
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -221,12 +231,9 @@ export default function PlanPage() {
             }),
           });
           const slideData = await res.json();
+          if (slideData.error) throw new Error(slideData.error);
 
-          if (slideData.error) {
-            throw new Error(slideData.error);
-          }
-
-          generatedSlides.push({
+          generatedSlides[i] = {
             title: slideData.title || planItems[i].title,
             layout: slideData.layout || planItems[i].layout,
             bullets: Array.isArray(slideData.bullets)
@@ -234,8 +241,10 @@ export default function PlanPage() {
               : [planItems[i].description],
             speakerNotes: slideData.speakerNotes || "",
             c1Dsl: slideData.c1Dsl || undefined,
-          });
-          slideGenerated = true;
+          };
+          setSlideStatus((s) => ({ ...s, [i]: "done" }));
+          setCompletedCount((c) => c + 1);
+          return;
         } catch {
           if (attempt < 2) {
             await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
@@ -243,17 +252,36 @@ export default function PlanPage() {
         }
       }
 
-      // If all retries failed, insert a placeholder so the user can edit manually
-      if (!slideGenerated) {
-        generatedSlides.push({
-          title: planItems[i].title,
-          layout: planItems[i].layout,
-          bullets: [planItems[i].description, "Edit this slide manually in the editor"],
-          speakerNotes: "",
-        });
-        addMsg("assistant", `⚠️ Slide ${i + 1} couldn't be generated after retries. You can edit it in the editor.`);
-      }
-    }
+      // All retries failed — insert an editable placeholder.
+      generatedSlides[i] = {
+        title: planItems[i].title,
+        layout: planItems[i].layout,
+        bullets: [planItems[i].description, "Edit this slide manually in the editor"],
+        speakerNotes: "",
+      };
+      setSlideStatus((s) => ({ ...s, [i]: "failed" }));
+      setCompletedCount((c) => c + 1);
+      addMsg(
+        "assistant",
+        `⚠️ Slide ${i + 1} couldn't be generated after retries. You can edit it in the editor.`,
+      );
+    };
+
+    // Bounded-concurrency pool: generate several slides at once instead of
+    // serially, so an N-slide deck no longer takes N x (per-slide latency).
+    const CONCURRENCY = 4;
+    const queue = planItems.map((_, i) => i);
+    let cursor = 0;
+    const workers = Array.from(
+      { length: Math.min(CONCURRENCY, queue.length) },
+      async () => {
+        while (cursor < queue.length) {
+          const i = queue[cursor++];
+          await generateOne(i);
+        }
+      },
+    );
+    await Promise.all(workers);
 
     await runReplaceAllSlides({ deckId: id as any, slides: generatedSlides });
     await runUpdatePlan({
@@ -309,8 +337,8 @@ export default function PlanPage() {
 
   const isEditable = phase === "planning";
   const progressPct =
-    planItems.length > 0 && generatingIndex >= 0
-      ? Math.round(((generatingIndex + 1) / planItems.length) * 100)
+    planItems.length > 0 && phase === "generating"
+      ? Math.round((completedCount / planItems.length) * 100)
       : 0;
 
   return (
@@ -476,10 +504,10 @@ export default function PlanPage() {
                   Approve & Generate
                 </Button>
               )}
-              {phase === "generating" && generatingIndex >= 0 && (
+              {phase === "generating" && (
                 <div className="flex items-center gap-2 text-zinc-400 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="text-xs font-medium">Generating {generatingIndex + 1}/{planItems.length}</span>
+                  <span className="text-xs font-medium">Generated {completedCount}/{planItems.length}</span>
                 </div>
               )}
             </div>
@@ -498,7 +526,10 @@ export default function PlanPage() {
               <div className="space-y-4 pb-10">
                 {planItems.map((item, idx) => {
                   const isDragging = draggedItemIndex === idx;
-                  const isGeneratingThis = generatingIndex === idx;
+                  const status = slideStatus[idx];
+                  const isGeneratingThis = status === "generating";
+                  const isDoneThis = status === "done";
+                  const isFailedThis = status === "failed";
                   
                   return (
                     <div
@@ -510,6 +541,8 @@ export default function PlanPage() {
                       className={`group relative flex items-start gap-4 p-5 rounded-2xl border transition-all duration-300 ${
                         isDragging ? "opacity-40 scale-[0.98] border-dashed border-zinc-500" :
                         isGeneratingThis ? "border-blue-500/50 bg-blue-500/5 shadow-[0_0_30px_rgba(59,130,246,0.1)] scale-[1.02]" :
+                        isDoneThis ? "border-emerald-500/30 bg-emerald-500/5" :
+                        isFailedThis ? "border-red-500/30 bg-red-500/5" :
                         "border-white/5 bg-[#18181b] hover:border-white/10 hover:shadow-lg"
                       }`}
                     >
@@ -521,9 +554,14 @@ export default function PlanPage() {
                           </div>
                         )}
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                          isGeneratingThis ? "bg-blue-500 text-white" : "bg-zinc-800 text-zinc-400"
+                          isGeneratingThis ? "bg-blue-500 text-white" :
+                          isDoneThis ? "bg-emerald-500 text-white" :
+                          isFailedThis ? "bg-red-500 text-white" :
+                          "bg-zinc-800 text-zinc-400"
                         }`}>
-                          {isGeneratingThis ? <Loader2 className="w-3 h-3 animate-spin" /> : idx + 1}
+                          {isGeneratingThis ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                           isDoneThis ? <CheckCircle className="w-3.5 h-3.5" /> :
+                           idx + 1}
                         </div>
                       </div>
 
