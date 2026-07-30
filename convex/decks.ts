@@ -104,9 +104,13 @@ export const getById = query({
     // Sort slides by order ascending
     slides.sort((a, b) => a.order - b.order);
 
+    let brandKit = null;
+    if (deck.brandKitId) brandKit = await ctx.db.get(deck.brandKitId);
+
     return {
       ...deck,
       slides,
+      brandKit,
     };
   },
 });
@@ -338,7 +342,59 @@ export const getDeckForExport = internalQuery({
 
     slides.sort((a, b) => a.order - b.order);
 
-    return { ...deck, slides };
+    // Attach the brand kit (if any) so exports can be brand-aware.
+    let brandKit = null;
+    if (deck.brandKitId) {
+      brandKit = await ctx.db.get(deck.brandKitId);
+    }
+
+    return { ...deck, slides, brandKit };
+  },
+});
+
+// Generate (or return existing) a public share token for a deck.
+export const shareDeck = mutation({
+  args: { id: v.id("decks") },
+  handler: async (ctx, args) => {
+    const userId = await getOrCreateUser(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    const deck = await ctx.db.get(args.id);
+    if (!deck) throw new Error("Deck not found");
+    if (deck.userId !== userId) throw new Error("Unauthorized");
+    if (deck.shareId) return { shareId: deck.shareId };
+    const shareId = `${args.id}-${Math.random().toString(36).slice(2, 10)}`;
+    await ctx.db.patch(args.id, { shareId, updatedAt: new Date().toISOString() });
+    return { shareId };
+  },
+});
+
+// Public, read-only deck fetch by share token (no auth).
+export const getByShareId = query({
+  args: { shareId: v.string() },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db
+      .query("decks")
+      .withIndex("by_shareId", (q) => q.eq("shareId", args.shareId))
+      .unique();
+    if (!deck) return null;
+    const slides = await ctx.db
+      .query("slides")
+      .withIndex("by_deckId", (q) => q.eq("deckId", deck._id))
+      .collect();
+    slides.sort((a, b) => a.order - b.order);
+    let brandKit = null;
+    if (deck.brandKitId) brandKit = await ctx.db.get(deck.brandKitId);
+    return {
+      title: deck.title,
+      objective: deck.objective,
+      slides: slides.map((s) => ({
+        title: s.title,
+        layout: s.layout,
+        content: s.content,
+        speakerNotes: s.speakerNotes,
+      })),
+      brandKit,
+    };
   },
 });
 

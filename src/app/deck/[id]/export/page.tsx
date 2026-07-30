@@ -5,7 +5,7 @@ import { ArrowLeft, Download, FileDown, FileText, Check, X, Monitor, Palette, Ty
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
 export default function ExportPage() {
@@ -13,32 +13,105 @@ export default function ExportPage() {
   const [format, setFormat] = useState("pptx");
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>("");
+  const [sharing, setSharing] = useState(false);
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
   const slides = deck?.slides || [];
   const runExportDeck = useAction(api.export.generatePptx);
+  const runShare = useMutation(api.decks.shareDeck);
+  const brandKits = useQuery(api.brandKits.listMine);
+  const runSetBrand = useMutation(api.brandKits.setForDeck);
+
+  const parseBullets = (content: string): string[] => {
+    try {
+      const p = JSON.parse(content || "[]");
+      return Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handlePdfExport = async () => {
+    const { default: JsPDF } = await import("jspdf");
+    const brand: any = (deck as any)?.brandKit || null;
+    const bg = brand?.backgroundColor || "#0F1011";
+    const text = brand?.textColor || "#F7F8F8";
+    const accent = brand?.primaryColor || "#7170FF";
+
+    const pdf = new JsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const W = pdf.internal.pageSize.getWidth();
+    const H = pdf.internal.pageSize.getHeight();
+
+    slides.forEach((slide: any, index: number) => {
+      if (index > 0) pdf.addPage();
+      pdf.setFillColor(bg);
+      pdf.rect(0, 0, W, H, "F");
+      // accent bar
+      pdf.setFillColor(accent);
+      pdf.rect(40, 48, 60, 5, "F");
+      // title
+      pdf.setTextColor(text);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(slide.layout === "title" ? 30 : 22);
+      pdf.text(pdf.splitTextToSize(slide.title || "Untitled", W - 80), 40, 90);
+      // bullets
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(14);
+      let y = 140;
+      for (const b of parseBullets(slide.content)) {
+        const lines = pdf.splitTextToSize(`•  ${b}`, W - 90);
+        pdf.text(lines, 45, y);
+        y += 20 * lines.length + 6;
+        if (y > H - 60) break;
+      }
+      // footer
+      pdf.setFontSize(9);
+      pdf.setTextColor("#94A3B8");
+      pdf.text(`${index + 1} / ${slides.length}`, W - 70, H - 30);
+      pdf.text("GenStack AI", 40, H - 30);
+    });
+
+    pdf.save(`${deck?.title || "presentation"}.pdf`);
+  };
 
   const handleExport = async () => {
-    if (format === "pdf") {
-      alert("PDF export is coming soon! Please use PowerPoint (.pptx) format for now.");
-      return;
-    }
     setExporting(true);
     try {
-      const data = await runExportDeck({ deckId: id as any });
-      setExporting(false);
-      setDone(true);
-      if (data?.downloadUrl) {
-        const a = document.createElement("a");
-        a.href = data.downloadUrl;
-        a.download = data.fileName || `${deck?.title || "presentation"}.pptx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      if (format === "pdf") {
+        await handlePdfExport();
+      } else {
+        const data = await runExportDeck({ deckId: id as any });
+        if (data?.downloadUrl) {
+          const a = document.createElement("a");
+          a.href = data.downloadUrl;
+          a.download = data.fileName || `${deck?.title || "presentation"}.pptx`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
       }
+      setDone(true);
     } catch (e) {
       console.error(e);
+    } finally {
       setExporting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      const { shareId } = await runShare({ id: id as any });
+      const url = `${window.location.origin}/s/${shareId}`;
+      setShareUrl(url);
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {}
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -152,8 +225,8 @@ export default function ExportPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="flat" className="bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-default-300" startContent={<Share2 className="w-4 h-4" />}>
-            Share
+          <Button variant="flat" className="bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-default-300" startContent={<Share2 className="w-4 h-4" />} onPress={handleShare} isLoading={sharing}>
+            {shareUrl ? "Link Copied" : "Share"}
           </Button>
           <Button
             color="primary"
@@ -166,6 +239,16 @@ export default function ExportPage() {
           </Button>
         </div>
       </div>
+
+      {shareUrl && (
+        <div className="max-w-6xl mx-auto px-8 pt-4">
+          <div className="flex items-center gap-3 p-3 bg-[#7170FF]/10 border border-[#7170FF]/25 rounded-xl">
+            <Share2 className="w-4 h-4 text-[#7170FF]" />
+            <span className="text-sm text-default-300">Public link (copied):</span>
+            <a href={shareUrl} target="_blank" rel="noreferrer" className="text-sm text-[#7170FF] underline truncate">{shareUrl}</a>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -226,6 +309,30 @@ export default function ExportPage() {
                     </div>
                   </Radio>
                 </RadioGroup>
+
+                <Divider className="bg-white/[0.08]" />
+
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-white tracking-tight">Brand Kit</h3>
+                  <Link href="/settings/brand" className="text-[11px] text-[#7170FF] hover:underline">Manage</Link>
+                </div>
+                <select
+                  value={(deck as any)?.brandKitId || ""}
+                  onChange={(e) =>
+                    runSetBrand({
+                      deckId: id as any,
+                      brandKitId: (e.target.value || undefined) as any,
+                    })
+                  }
+                  className="w-full h-10 rounded-xl bg-[#151617] border border-white/[0.08] text-sm text-default-200 px-3 focus:outline-none focus:border-[#7170FF]"
+                >
+                  <option value="">Default (no brand)</option>
+                  {brandKits?.map((k: any) => (
+                    <option key={k._id} value={k._id}>
+                      {k.name}
+                    </option>
+                  ))}
+                </select>
 
                 <Divider className="bg-white/[0.08]" />
 

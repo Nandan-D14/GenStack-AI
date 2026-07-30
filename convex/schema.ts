@@ -43,9 +43,12 @@ export default defineSchema({
     chatHistory: v.optional(v.string()), // JSON string of planner ChatMessage[]
     chatSummary: v.optional(v.string()), // compacted summary of older planner turns
     editorChatHistory: v.optional(v.string()), // JSON string of editor copilot ChatMessage[]
+    shareId: v.optional(v.string()), // public share token (read-only web view)
     createdAt: v.string(),
     updatedAt: v.string(),
-  }).index("by_userId", ["userId"]),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_shareId", ["shareId"]),
 
   slides: defineTable({
     deckId: v.id("decks"),
