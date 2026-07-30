@@ -105,7 +105,7 @@ export default function EditorPage() {
   const runDuplicateSlide = useMutation(api.slides.duplicateSlide);
   const runUpdateSlideOrders = useMutation(api.slides.updateSlideOrders);
   const runUpdateC1Data = useMutation(api.decks.updateC1Data);
-  const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
+  const runUpdateChatHistory = useMutation(api.decks.updateEditorChatHistory);
 
   // Convex action for PPTX generation
   const runGeneratePptx = useAction(api.export.generatePptx);
@@ -114,9 +114,10 @@ export default function EditorPage() {
   const [hasLoadedChat, setHasLoadedChat] = useState(false);
   useEffect(() => {
     if (!deck || hasLoadedChat) return;
-    if (deck.chatHistory) {
+    const editorChat = (deck as any).editorChatHistory;
+    if (editorChat) {
       try {
-        const savedChat = JSON.parse(deck.chatHistory);
+        const savedChat = JSON.parse(editorChat);
         if (Array.isArray(savedChat)) {
           setCanvasChatMessages(savedChat);
         }
@@ -284,7 +285,14 @@ export default function EditorPage() {
       const response = await fetch("/api/generate-slides", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, deckId: id }),
+        body: JSON.stringify({
+          prompt,
+          deckId: id,
+          tone: (deck as any)?.tone || "professional",
+          audience: (deck as any)?.audience || "general",
+          slidesCount: (deck as any)?.slidesCount || 7,
+          skill: (deck as any)?.designSkill || null,
+        }),
       });
 
       if (!response.ok) {
@@ -352,6 +360,7 @@ export default function EditorPage() {
           slides: sanitizedSlides,
           prompt: editPrompt,
           deckId: id,
+          skill: (deck as any)?.designSkill || null,
         }),
       });
 
@@ -558,7 +567,7 @@ export default function EditorPage() {
     
     const nextMessages = [...canvasChatMessages, { role: "user" as const, content: msg }];
     setCanvasChatMessages(nextMessages);
-    runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(nextMessages) }).catch(console.error);
+    runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(nextMessages) }).catch(console.error);
     
     setIsChatLoading(true);
 
@@ -582,6 +591,7 @@ export default function EditorPage() {
           })),
           deckTitle: deck?.title || "",
           history: nextMessages.slice(-6),
+          skill: (deck as any)?.designSkill || null,
         }),
       });
 
@@ -595,7 +605,7 @@ export default function EditorPage() {
         { role: "assistant" as const, content: reply },
       ];
       setCanvasChatMessages(finalMessages);
-      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
+      runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(finalMessages) }).catch(console.error);
 
       // Apply slide update if returned
       if (data.slideUpdate && activeSlide) {
@@ -620,7 +630,7 @@ export default function EditorPage() {
         },
       ];
       setCanvasChatMessages(finalMessages);
-      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
+      runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(finalMessages) }).catch(console.error);
     } finally {
       setIsChatLoading(false);
     }

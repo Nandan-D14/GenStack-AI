@@ -40,6 +40,37 @@ export function recordUsage(u: UsageRecord) {
   }
 }
 
+/**
+ * Compresses a span of conversation turns into a concise summary, used to keep
+ * the planner's context small on long chats (short-term memory compaction).
+ * Returns "" on failure so callers can fall back to sending raw history.
+ */
+export async function summarizeConversation(
+  turns: ChatTurn[],
+  priorSummary?: string,
+): Promise<string> {
+  if (turns.length === 0) return priorSummary || "";
+  const { client, model } = getAIClient();
+  const transcript = turns
+    .map((t) => `${t.role.toUpperCase()}: ${t.content}`)
+    .join("\n");
+  const system =
+    "You are a conversation summarizer. Produce a concise, factual summary (max 8 bullet points) capturing the user's goals, audience, key decisions, and any agreed plan changes. Output plain text only.";
+  const user = `${priorSummary ? `Existing summary:\n${priorSummary}\n\n` : ""}New conversation turns to fold in:\n${transcript}`;
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+    return (response.choices?.[0]?.message?.content ?? "").trim();
+  } catch {
+    return priorSummary || "";
+  }
+}
+
 export type GenerateStructuredOptions<T extends z.ZodTypeAny> = {
   /** Task name for logging/observability. */
   task: string;

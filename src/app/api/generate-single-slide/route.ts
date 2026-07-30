@@ -5,7 +5,7 @@ import { singleSlideSystem } from "@/server/prompts";
 
 export async function POST(req: NextRequest) {
   try {
-    const { planItem, deckContext, tone, audience, allPlanItems, skill, contextChunks } =
+    const { planItem, deckContext, tone, audience, allPlanItems, skill, contextChunks, userMemory } =
       await req.json();
 
     if (!planItem) {
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       allPlanItems: Array.isArray(allPlanItems) ? allPlanItems : [planItem],
       skill: skill || null,
       contextChunks: contextChunks || undefined,
+      memory: userMemory || null,
     });
 
     try {

@@ -369,11 +369,12 @@ export const updatePlan = mutation({
   },
 });
 
-// Update chat history for a deck
+// Update planner chat history (and optional compacted summary) for a deck
 export const updateChatHistory = mutation({
   args: {
     id: v.id("decks"),
     chatHistory: v.string(), // JSON string
+    chatSummary: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const deck = await ctx.db.get(args.id);
@@ -382,6 +383,26 @@ export const updateChatHistory = mutation({
     }
     await ctx.db.patch(args.id, {
       chatHistory: args.chatHistory,
+      ...(args.chatSummary !== undefined ? { chatSummary: args.chatSummary } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  },
+});
+
+// Update the editor copilot's chat history (kept separate from the planner's)
+export const updateEditorChatHistory = mutation({
+  args: {
+    id: v.id("decks"),
+    editorChatHistory: v.string(), // JSON string
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      editorChatHistory: args.editorChatHistory,
       updatedAt: new Date().toISOString(),
     });
     return { success: true };

@@ -17,6 +17,11 @@ function skillBlock(skill?: string | null): string {
   return g ? `\n\n${g}\n` : "";
 }
 
+function memoryBlock(memory?: string | null): string {
+  if (!memory || !memory.trim()) return "";
+  return `\n\n## USER MEMORY (known preferences / brand voice — honor these)\n${memory.trim()}\n`;
+}
+
 /** System prompt for the conversational planner (/api/plan-chat). */
 export function planChatSystem(opts: {
   deckTitle: string;
@@ -26,8 +31,13 @@ export function planChatSystem(opts: {
   isFirstMessage: boolean;
   priorUserMessages: number;
   skill?: string | null;
+  memory?: string | null;
+  summary?: string | null;
 }): string {
   const { deckTitle, slidesCount, isFirstMessage, priorUserMessages } = opts;
+  const summaryBlock = opts.summary
+    ? `\n\n## EARLIER CONVERSATION SUMMARY\n${opts.summary}\n`
+    : "";
   return `You are an expert presentation strategist and co-pilot inside GenStack AI. You help users plan powerful presentations through natural conversation.
 
 ## YOUR PERSONALITY
@@ -65,7 +75,7 @@ ${
 
 ## LAYOUT OPTIONS
 ${allLayoutRules()}
-${skillBlock(opts.skill)}
+${skillBlock(opts.skill)}${memoryBlock(opts.memory)}${summaryBlock}
 ## RESPONSE FORMAT
 Return ONLY valid JSON:
 { "message": "conversational response (2-4 sentences)", "plan": null, "action": "chat" }
@@ -82,6 +92,7 @@ export function singleSlideSystem(opts: {
   allPlanItems: PlanItem[];
   skill?: string | null;
   contextChunks?: string;
+  memory?: string | null;
 }): { system: string; user: string } {
   const { planItem, deckContext, tone, audience, allPlanItems } = opts;
   const totalSlides = allPlanItems.length;
@@ -129,7 +140,7 @@ ${deckOutline}
 
 ## CONTENT REQUIREMENTS
 ${layoutRulesFor(planItem.layout, planItem.description)}
-${sources}${skillBlock(opts.skill)}
+${sources}${skillBlock(opts.skill)}${memoryBlock(opts.memory)}
 ## QUALITY STANDARDS
 - Every bullet must contain SPECIFIC information — no filler or placeholder text
 - Content must flow from the previous slide and lead into the next

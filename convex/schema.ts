@@ -40,7 +40,9 @@ export default defineSchema({
     planItems: v.optional(v.string()), // JSON string of PlanItem[]
     planStatus: v.optional(v.string()), // "planning" | "approved" | "generating" | "done"
     generationMode: v.optional(v.string()), // "custom" | "template"
-    chatHistory: v.optional(v.string()), // JSON string of ChatMessage[]
+    chatHistory: v.optional(v.string()), // JSON string of planner ChatMessage[]
+    chatSummary: v.optional(v.string()), // compacted summary of older planner turns
+    editorChatHistory: v.optional(v.string()), // JSON string of editor copilot ChatMessage[]
     createdAt: v.string(),
     updatedAt: v.string(),
   }).index("by_userId", ["userId"]),
@@ -101,4 +103,12 @@ export default defineSchema({
     fileSize: v.float64(),
     createdAt: v.string(),
   }),
+
+  // Long-term, cross-deck memory of a user's preferences and brand voice.
+  userMemory: defineTable({
+    userId: v.id("users"),
+    notes: v.optional(v.string()), // freeform brand voice / preferences notes
+    preferences: v.optional(v.string()), // JSON: { tone, audience, lastTopic, ... }
+    updatedAt: v.string(),
+  }).index("by_userId", ["userId"]),
 });

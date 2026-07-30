@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -76,9 +76,31 @@ export default function PlanPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
+  const memory = useQuery(api.memory.getMine);
   const runUpdatePlan = useMutation(api.decks.updatePlan);
   const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
   const runReplaceAllSlides = useMutation(api.slides.replaceAllSlides);
+  const runUpsertMemory = useMutation(api.memory.upsert);
+
+  const [chatSummary, setChatSummary] = useState<string>("");
+
+  // Build a compact, human-readable memory string for the AI from the user's
+  // long-term memory record (brand voice notes + preferences).
+  const memoryString = useMemo(() => {
+    if (!memory) return "";
+    const parts: string[] = [];
+    if ((memory as any).notes) parts.push((memory as any).notes);
+    try {
+      const prefs = (memory as any).preferences
+        ? JSON.parse((memory as any).preferences)
+        : null;
+      if (prefs) {
+        if (prefs.tone) parts.push(`Preferred tone: ${prefs.tone}`);
+        if (prefs.audience) parts.push(`Usual audience: ${prefs.audience}`);
+      }
+    } catch {}
+    return parts.join("\n");
+  }, [memory]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -92,6 +114,7 @@ export default function PlanPage() {
     setGenerationMode(
       (deck as any).generationMode === "template" ? "template" : "custom",
     );
+    setChatSummary((deck as any).chatSummary || "");
 
     let loadedPlan = false;
     if (deck.planItems) {
@@ -160,10 +183,13 @@ export default function PlanPage() {
           audience: (deck as any)?.audience || "general",
           slidesCount: planItems.length || (deck as any)?.slidesCount || 10,
           skill: (deck as any)?.designSkill || null,
+          userMemory: memoryString || null,
+          chatSummary: chatSummary || null,
         }),
       });
 
       const data = await res.json();
+      if (typeof data.summary === "string") setChatSummary(data.summary);
       if (data.message) addMsg("assistant", data.message);
 
       // If the AI returned a plan (created or updated), apply it
@@ -230,6 +256,7 @@ export default function PlanPage() {
               allPlanItems: planItems,
               deckId: id,
               skill: (deck as any)?.designSkill || null,
+              userMemory: memoryString || null,
             }),
           });
           const slideData = await res.json();
@@ -292,6 +319,17 @@ export default function PlanPage() {
       planStatus: "done",
       generationMode,
     });
+
+    // Persist long-term preferences so future decks remember tone/audience.
+    try {
+      await runUpsertMemory({
+        preferences: JSON.stringify({
+          tone: (deck as any)?.tone || "professional",
+          audience: (deck as any)?.audience || "general",
+          lastTopic: (deck as any)?.title || "",
+        }),
+      });
+    } catch {}
 
     setPhase("done");
     setGeneratingIndex(-1);
