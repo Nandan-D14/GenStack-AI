@@ -71,7 +71,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[18px]">dashboard</span>
               {isSidebarOpen && <span className="text-[13px] font-medium whitespace-nowrap">My Decks</span>}
             </Link>
-            <Link href="#" className={`flex items-center gap-3 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 rounded-md transition-all ${isSidebarOpen ? 'px-3 py-2' : 'justify-center p-2 mx-auto w-10 h-10'}`} title="Templates">
+            <Link href="/templates" className={`flex items-center gap-3 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 rounded-md transition-all ${isSidebarOpen ? 'px-3 py-2' : 'justify-center p-2 mx-auto w-10 h-10'}`} title="Templates">
               <span className="material-symbols-outlined text-[18px]">collections_bookmark</span>
               {isSidebarOpen && <span className="text-[13px] font-medium whitespace-nowrap">Templates</span>}
             </Link>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-[18px]">insights</span>
               {isSidebarOpen && <span className="text-[13px] font-medium whitespace-nowrap">Analytics</span>}
             </Link>
-            <Link href="#" className={`flex items-center gap-3 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 rounded-md transition-all ${isSidebarOpen ? 'px-3 py-2' : 'justify-center p-2 mx-auto w-10 h-10'}`} title="Settings">
+            <Link href="/settings/brand" className={`flex items-center gap-3 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 rounded-md transition-all ${isSidebarOpen ? 'px-3 py-2' : 'justify-center p-2 mx-auto w-10 h-10'}`} title="Settings">
               <span className="material-symbols-outlined text-[18px]">settings</span>
               {isSidebarOpen && <span className="text-[13px] font-medium whitespace-nowrap">Settings</span>}
             </Link>

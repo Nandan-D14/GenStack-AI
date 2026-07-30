@@ -41,6 +41,7 @@ import {
   Maximize,
   GripVertical,
   FileText,
+  History,
 } from "lucide-react";
 import { C1Component } from "@thesysai/genui-sdk";
 import Link from "next/link";
@@ -106,6 +107,12 @@ export default function EditorPage() {
   const runUpdateSlideOrders = useMutation(api.slides.updateSlideOrders);
   const runUpdateC1Data = useMutation(api.decks.updateC1Data);
   const runUpdateChatHistory = useMutation(api.decks.updateEditorChatHistory);
+  const runSaveVersion = useMutation(api.versions.saveVersion);
+  const runRestoreVersion = useMutation(api.versions.restoreVersion);
+  const versions = useQuery(
+    api.versions.listVersions,
+    id ? { deckId: id as any } : "skip",
+  );
 
   // Convex action for PPTX generation
   const runGeneratePptx = useAction(api.export.generatePptx);
@@ -1255,6 +1262,43 @@ export default function EditorPage() {
               <Play className="w-4 h-4 ml-0.5" />
             </Button>
           </Tooltip>
+
+          {/* Version history */}
+          <Dropdown classNames={{ content: "bg-zinc-900 border border-zinc-800 min-w-[240px] rounded-md" }}>
+            <DropdownTrigger>
+              <Button
+                isIconOnly
+                variant="flat"
+                size="sm"
+                className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 rounded-md w-8 h-8 min-w-0 transition-colors ml-1"
+                title="Version history"
+              >
+                <History className="w-4 h-4" />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu
+              aria-label="Version history"
+              itemClasses={{ base: "text-zinc-300 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-white rounded-md py-2" }}
+              onAction={(key) => {
+                if (key === "save") {
+                  runSaveVersion({ deckId: id as any }).catch(console.error);
+                } else {
+                  runRestoreVersion({ versionId: key as any }).catch(console.error);
+                }
+              }}
+            >
+              {[
+                <DropdownItem key="save" startContent={<CheckCircle className="w-4 h-4" />}>
+                  Save current version
+                </DropdownItem>,
+                ...(versions || []).map((v: any) => (
+                  <DropdownItem key={v._id} startContent={<History className="w-4 h-4" />}>
+                    {`Restore: ${v.label}`}
+                  </DropdownItem>
+                )),
+              ]}
+            </DropdownMenu>
+          </Dropdown>
 
           {/* Export PPTX button */}
           <Tooltip

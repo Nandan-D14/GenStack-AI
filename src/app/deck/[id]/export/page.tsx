@@ -22,6 +22,21 @@ export default function ExportPage() {
   const runShare = useMutation(api.decks.shareDeck);
   const brandKits = useQuery(api.brandKits.listMine);
   const runSetBrand = useMutation(api.brandKits.setForDeck);
+  const runAddCollaborator = useMutation(api.decks.addCollaborator);
+  const [collabEmail, setCollabEmail] = useState("");
+  const [collabAdded, setCollabAdded] = useState(false);
+
+  const handleInvite = async () => {
+    if (!collabEmail.trim()) return;
+    try {
+      await runAddCollaborator({ id: id as any, email: collabEmail.trim() });
+      setCollabAdded(true);
+      setCollabEmail("");
+      setTimeout(() => setCollabAdded(false), 2500);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const parseBullets = (content: string): string[] => {
     try {
@@ -333,6 +348,23 @@ export default function ExportPage() {
                     </option>
                   ))}
                 </select>
+
+                <Divider className="bg-white/[0.08]" />
+
+                <h3 className="font-semibold text-white tracking-tight">Collaborators</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    value={collabEmail}
+                    onChange={(e) => setCollabEmail(e.target.value)}
+                    placeholder="teammate@email.com"
+                    className="flex-1 h-10 rounded-xl bg-[#151617] border border-white/[0.08] text-sm text-default-200 px-3 focus:outline-none focus:border-[#7170FF]"
+                  />
+                  <Button size="sm" className="bg-[#7170FF] text-white rounded-xl h-10" onPress={handleInvite}>
+                    {collabAdded ? "Invited" : "Invite"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-default-500">Collaborators can open and edit this deck; changes sync live.</p>
 
                 <Divider className="bg-white/[0.08]" />
 

@@ -44,6 +44,7 @@ export default defineSchema({
     chatSummary: v.optional(v.string()), // compacted summary of older planner turns
     editorChatHistory: v.optional(v.string()), // JSON string of editor copilot ChatMessage[]
     shareId: v.optional(v.string()), // public share token (read-only web view)
+    collaborators: v.optional(v.array(v.string())), // emails with edit access (live via Convex reactivity)
     createdAt: v.string(),
     updatedAt: v.string(),
   })

@@ -71,10 +71,46 @@ export const list = query({
       return [];
     }
 
-    return await ctx.db
+    const owned = await ctx.db
       .query("decks")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
+
+    // Also include decks shared with this user as a collaborator.
+    const identity = await ctx.auth.getUserIdentity();
+    const email = identity?.email;
+    if (!email) return owned;
+
+    const all = await ctx.db.query("decks").collect();
+    const shared = all.filter(
+      (d) =>
+        d.userId !== userId &&
+        Array.isArray(d.collaborators) &&
+        d.collaborators.includes(email),
+    );
+    return [...owned, ...shared];
+  },
+});
+
+// Invite a collaborator (by email) to edit a deck. Enables live co-editing
+// through Convex's reactive queries.
+export const addCollaborator = mutation({
+  args: { id: v.id("decks"), email: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getOrCreateUser(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    const deck = await ctx.db.get(args.id);
+    if (!deck) throw new Error("Deck not found");
+    if (deck.userId !== userId) throw new Error("Unauthorized");
+    const email = args.email.trim().toLowerCase();
+    const current = deck.collaborators || [];
+    if (!current.includes(email)) {
+      await ctx.db.patch(args.id, {
+        collaborators: [...current, email],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return { success: true };
   },
 });
 
@@ -92,7 +128,14 @@ export const getById = query({
       return null;
     }
 
-    if (deck.userId !== userId) {
+    // Allow the owner or any invited collaborator (by email) to open the deck.
+    const identity = await ctx.auth.getUserIdentity();
+    const isOwner = deck.userId === userId;
+    const isCollaborator =
+      !!identity?.email &&
+      Array.isArray(deck.collaborators) &&
+      deck.collaborators.includes(identity.email);
+    if (!isOwner && !isCollaborator) {
       return null;
     }
 
