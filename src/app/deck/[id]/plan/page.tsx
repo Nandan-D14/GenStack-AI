@@ -158,7 +158,7 @@ export default function PlanPage() {
           deckTitle: (deck as any)?.title || "",
           tone: (deck as any)?.tone || "professional",
           audience: (deck as any)?.audience || "general",
-          slidesCount: planItems.length || 10,
+          slidesCount: planItems.length || (deck as any)?.slidesCount || 10,
         }),
       });
 

@@ -60,6 +60,7 @@ export default function NewDeckPage() {
         tone: tone.toLowerCase(),
         objective: finalObjective || "General outline generation",
         audience: audience,
+        slidesCount: slidesCount,
       });
       router.push(`/deck/${newDeckId}/plan`);
     } catch (e) {

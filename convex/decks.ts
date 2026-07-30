@@ -119,6 +119,7 @@ export const create = mutation({
     type: v.string(),
     tone: v.string(),
     audience: v.optional(v.string()),
+    slidesCount: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
     const userId = await getOrCreateUser(ctx);
@@ -133,6 +134,7 @@ export const create = mutation({
       type: args.type,
       tone: args.tone,
       audience: args.audience,
+      slidesCount: args.slidesCount,
       status: "draft",
       userId,
       createdAt: now,

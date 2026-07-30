@@ -29,6 +29,7 @@ export default defineSchema({
     type: v.string(), // "pitch" | "sales" | "marketing" | "training" | "report"
     tone: v.string(), // "formal" | "casual" | "persuasive"
     audience: v.optional(v.string()),
+    slidesCount: v.optional(v.float64()), // user-chosen target slide count
     status: v.string(), // "draft" | "published" | "archived"
     userId: v.id("users"),
     workspaceId: v.optional(v.id("workspaces")),
