@@ -2,228 +2,271 @@
 
 import Link from "next/link";
 import { SignInButton, Show, UserButton } from "@clerk/nextjs";
+import { Chip } from "@/components/ui";
 
 export default function LandingPage() {
   return (
-    <div className="bg-background text-on-background font-body-md antialiased overflow-x-hidden min-h-screen">
-      {/* TopNavBar */}
-      <nav className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-background/80 backdrop-blur-md border-b border-border">
+    <div className="bg-gs-bg text-gs-text font-sans antialiased overflow-x-hidden min-h-screen">
+      <nav className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-14 bg-gs-bg/80 backdrop-blur-md border-b border-gs-border">
         <div className="flex items-center gap-md">
-          <Link href="/" className="font-headline-sm text-headline-sm font-bold text-primary tracking-tight">
-            GenStackAI
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-md bg-gs-accent/20 border border-gs-accent/30 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px] text-gs-accent">layers</span>
+            </span>
+            <span className="text-[15px] font-semibold tracking-tight">GenStack</span>
           </Link>
-          <div className="hidden md:flex items-center gap-md ml-xl">
-            <Link className="text-on-surface-variant font-medium font-label-lg text-label-lg hover:text-primary transition-colors duration-200" href="#">Product</Link>
-            <Link className="text-on-surface-variant font-medium font-label-lg text-label-lg hover:text-primary transition-colors duration-200" href="#features">Features</Link>
-            <Link className="text-on-surface-variant font-medium font-label-lg text-label-lg hover:text-primary transition-colors duration-200" href="#pricing">Pricing</Link>
+          <div className="hidden md:flex items-center gap-1 ml-8">
+            <a className="gs-btn-ghost h-8 px-3 text-[13px]" href="#features">
+              Features
+            </a>
+            <a className="gs-btn-ghost h-8 px-3 text-[13px]" href="#pricing">
+              Pricing
+            </a>
+            <Link className="gs-btn-ghost h-8 px-3 text-[13px]" href="/templates">
+              Templates
+            </Link>
           </div>
         </div>
-        <div className="flex items-center gap-sm">
+        <div className="flex items-center gap-2">
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button className="font-label-lg text-label-lg text-primary hover:bg-tertiary px-4 h-[40px] rounded-full transition-colors hidden md:block">Login</button>
+              <button className="gs-btn-ghost h-9 hidden md:inline-flex">Log in</button>
             </SignInButton>
-            <Link href="/deck/new" className="font-label-lg text-label-lg bg-primary text-on-primary px-6 h-[40px] rounded-full hover:opacity-90 transition-opacity flex items-center justify-center">Sign Up</Link>
+            <Link href="/deck/new" className="gs-btn-primary">
+              Get started
+            </Link>
           </Show>
           <Show when="signed-in">
             <UserButton />
-            <Link href="/dashboard" className="font-label-lg text-label-lg bg-primary text-on-primary px-6 h-[40px] rounded-full hover:opacity-90 transition-opacity flex items-center justify-center">Dashboard</Link>
+            <Link href="/dashboard" className="gs-btn-primary">
+              Dashboard
+            </Link>
           </Show>
         </div>
       </nav>
 
       <main className="w-full">
-        {/* Hero Section */}
-        <section className="w-full px-gutter pt-[180px] pb-section flex flex-col items-center justify-center text-center relative overflow-hidden">
-          {/* Decorative Glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-primary/5 blur-[120px] rounded-full pointer-events-none"></div>
-          
-          <div className="max-w-4xl z-10 flex flex-col items-center">
-            <span className="px-4 py-1.5 rounded-full border border-border bg-surface-container-low font-label-md text-label-md text-on-surface-variant mb-md inline-flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-              Introducing GenStackAI 2.0
-            </span>
-            
-            <h1 className="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-display md:text-headline-display text-primary mb-md tracking-tight">
-              Future of Presentations
+        <section className="w-full px-gutter pt-36 pb-20 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[420px] bg-gs-accent/10 blur-[120px] rounded-full pointer-events-none" />
+
+          <div className="max-w-3xl z-10 flex flex-col items-center">
+            <Chip tone="accent" className="mb-5">
+              <span className="w-1.5 h-1.5 rounded-full bg-gs-accent animate-gs-pulse" />
+              AI-native presentation workspace
+            </Chip>
+
+            <h1 className="text-4xl md:text-6xl font-semibold tracking-tight text-gs-text mb-4">
+              GenStack
             </h1>
-            
-            <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mb-xl">
-              Craft compelling narratives with unparalleled precision. A luminous, distraction-free environment designed for the modern professional to build, present, and analyze with total clarity.
+            <p className="text-base md:text-lg text-gs-secondary max-w-xl mb-8 leading-relaxed">
+              From blank page to boardroom deck. Plan, generate, and refine slides with
+              Beautiful UI–inspired AI primitives built for speed and clarity.
             </p>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-sm">
-              <Link href="/deck/new" className="w-full sm:w-auto font-label-lg text-label-lg bg-primary text-on-primary px-8 h-[40px] rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
-                Get Started
+
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <Link href="/deck/new" className="gs-btn-primary h-10 px-6 w-full sm:w-auto">
+                Start creating
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </Link>
-              <button className="w-full sm:w-auto font-label-lg text-label-lg bg-tertiary text-primary border border-border px-8 h-[40px] rounded-full hover:bg-surface-variant transition-colors flex items-center justify-center gap-2">
-                Watch Demo
-                <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
-              </button>
+              <Link href="/templates" className="gs-btn-secondary h-10 px-6 w-full sm:w-auto">
+                Browse templates
+              </Link>
             </div>
           </div>
 
-          {/* Hero Abstract Visual */}
-          <div className="w-full max-w-5xl mt-xl aspect-video rounded-2xl border border-border bg-surface-container-low relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-tr from-surface-container-low via-surface to-surface-container-high opacity-80"></div>
-            {/* Image placeholder injected here */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center w-full h-full mix-blend-overlay opacity-40 transition-transform duration-1000 group-hover:scale-105" 
-              data-alt="A highly detailed, minimalist dark-mode software interface mockup floating in a pristine, void-like black space." 
-              style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuALVhFz0yNc6FZez19-ZeL8HCdSNcx99RrSGzPyz9VLvlAmf-njW0etlaXlidvyPw0B2zMzo2BOEHOvrf1pmcAtO6fNRLj5-kiekCWahD1-yNK2_QhmkHeR8EGJjdxiVX53qvgPf2THJNqX5Zm1M4gK95XN5uW_a7Ai0QpkFI-VMytl1DUpACqQP6v-Hc6SByyceZZjYKlliYqjk72_T1lrcuokaFRtdMsrivtdW1iVeV8ewI-Wl7LgnY2ubYr-pSYnpisvpgHdAQza')" }}>
+          {/* Product preview — Beautiful UI style composition */}
+          <div className="w-full max-w-5xl mt-14 rounded-xl border border-gs-border bg-gs-surface shadow-gs overflow-hidden text-left">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gs-border bg-gs-elevated">
+              <span className="w-2.5 h-2.5 rounded-full bg-white/10" />
+              <span className="w-2.5 h-2.5 rounded-full bg-white/10" />
+              <span className="w-2.5 h-2.5 rounded-full bg-white/10" />
+              <span className="ml-3 text-[11px] text-gs-muted font-mono">plan · generate · export</span>
             </div>
-          </div>
-        </section>
-
-        {/* Feature Grid (Bento Style) */}
-        <section id="features" className="w-full px-gutter py-section bg-surface-container-lowest">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col mb-xl">
-              <h2 className="font-headline-md text-headline-md text-primary tracking-tight mb-xs">Designed for Impact</h2>
-              <p className="font-body-md text-body-md text-on-surface-variant max-w-xl">Every tool you need, precisely where you need it. Zero clutter, pure focus.</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-sm auto-rows-[320px]">
-              {/* Feature 1 (Spans 2 columns on desktop) */}
-              <div className="md:col-span-2 rounded-2xl bg-surface-container-low border border-border p-lg flex flex-col justify-between relative overflow-hidden group hover:border-surface-variant transition-colors">
-                <div className="z-10 relative">
-                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-border flex items-center justify-center mb-md">
-                    <span className="material-symbols-outlined text-primary">auto_awesome</span>
-                  </div>
-                  <h3 className="font-headline-sm text-headline-sm text-primary mb-2">Generative Layouts</h3>
-                  <p className="font-body-md text-body-md text-on-surface-variant max-w-sm">Intelligent structural suggestions that adapt to your content in real-time, ensuring pixel-perfect alignment.</p>
+            <div className="grid md:grid-cols-[240px_1fr_280px] min-h-[320px]">
+              <aside className="hidden md:block border-r border-gs-border p-3 space-y-1 bg-gs-elevated">
+                <div className="gs-nav-item-active text-xs">
+                  <span className="material-symbols-outlined text-[16px]">dashboard</span>
+                  My Decks
                 </div>
-                {/* Decorative element */}
-                <div className="absolute -bottom-20 -right-20 w-64 h-64 border-[1px] border-border rounded-full opacity-20 group-hover:scale-110 transition-transform duration-700"></div>
-                <div className="absolute -bottom-10 -right-10 w-48 h-48 border-[1px] border-border rounded-full opacity-20 group-hover:scale-110 transition-transform duration-700 delay-75"></div>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="rounded-2xl bg-surface-container-low border border-border p-lg flex flex-col justify-between hover:border-surface-variant transition-colors">
-                <div>
-                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-border flex items-center justify-center mb-md">
-                    <span className="material-symbols-outlined text-primary">insights</span>
-                  </div>
-                  <h3 className="font-headline-sm text-headline-sm text-primary mb-2">Audience Analytics</h3>
-                  <p className="font-body-md text-body-md text-on-surface-variant">Track engagement and drop-off rates on every slide to refine your narrative.</p>
+                <div className="gs-nav-item text-xs">
+                  <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                  AI Plan
+                </div>
+                <div className="gs-nav-item text-xs">
+                  <span className="material-symbols-outlined text-[16px]">palette</span>
+                  Brand Kit
+                </div>
+              </aside>
+              <div className="p-4 space-y-3 border-r border-gs-border">
+                <div className="rounded-lg bg-gs-accent text-white px-3.5 py-2.5 text-sm ml-auto max-w-[80%]">
+                  Build a Series A pitch for a B2B AI infra startup
+                </div>
+                <div className="gs-thinking">
+                  Researching market framing → outlining 12 slides → applying brand kit…
+                </div>
+                <div className="rounded-lg border border-gs-border bg-gs-surface-2 px-3.5 py-2.5 text-sm text-gs-secondary max-w-[90%]">
+                  Drafted a 12-slide narrative: problem, solution, traction, ask.
                 </div>
               </div>
-
-              {/* Feature 3 */}
-              <div className="rounded-2xl bg-surface-container-low border border-border p-lg flex flex-col justify-between hover:border-surface-variant transition-colors">
-                <div>
-                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-border flex items-center justify-center mb-md">
-                    <span className="material-symbols-outlined text-primary">sync</span>
-                  </div>
-                  <h3 className="font-headline-sm text-headline-sm text-primary mb-2">Seamless Sync</h3>
-                  <p className="font-body-md text-body-md text-on-surface-variant">Real-time collaboration with team members across all devices.</p>
+              <div className="p-4 space-y-2 bg-gs-bg/40">
+                <div className="gs-task-row">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gs-success" />
+                  <span className="flex-1 text-xs text-gs-text truncate">Title slide</span>
+                  <span className="text-[11px] text-emerald-400">Done</span>
                 </div>
-              </div>
-
-              {/* Feature 4 (Spans 2 columns on desktop) */}
-              <div className="md:col-span-2 rounded-2xl bg-surface-container-low border border-border p-lg flex flex-col md:flex-row gap-lg justify-between items-center relative overflow-hidden group hover:border-surface-variant transition-colors">
-                <div className="z-10 relative flex-1">
-                  <div className="w-12 h-12 rounded-full bg-surface-container-high border border-border flex items-center justify-center mb-md">
-                    <span className="material-symbols-outlined text-primary">view_quilt</span>
-                  </div>
-                  <h3 className="font-headline-sm text-headline-sm text-primary mb-2">Component Library</h3>
-                  <p className="font-body-md text-body-md text-on-surface-variant max-w-sm">Access hundreds of premium, customizable components designed for high-contrast, modern corporate environments.</p>
+                <div className="gs-task-row">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gs-accent animate-gs-pulse" />
+                  <span className="flex-1 text-xs text-gs-text truncate">Market opportunity</span>
+                  <span className="text-[11px] text-gs-accent-text">Generating</span>
                 </div>
-                <div className="flex-1 w-full h-full relative min-h-[150px] rounded-xl border border-border bg-surface-container-high overflow-hidden">
-                  <div 
-                    className="absolute inset-0 bg-cover bg-center w-full h-full mix-blend-luminosity opacity-60" 
-                    data-alt="A macro shot of a sleek, dark-themed user interface component library floating in a 3D isometric perspective." 
-                    style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCJJE2SXj9NzX-Mveb1qXaWX9U0KxdpvMf04kvvK1lYzIBYL-G9Tj_pimYgCHi05pS7XUXIasvxVLdZJSyuDbW5V8svrG2MYy9LV7n0EAM0xHctHdvqbwJEfXMgQQ3kygJyJkuE7ImcbRMpyFMmtS0yOie-_eE9RbdoGRw4N9sTEYvi6KB2a4rr-6V48Gqlu5SlxyUM5Ki-yjH2vso3XEkjZ5zpg0uqrZqOVzVT70jrjOxc7whwJHL6r15zEymWsyFyjCnoYaG3s3ve')" }}>
+                <div className="gs-task-row opacity-60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gs-muted" />
+                  <span className="flex-1 text-xs text-gs-text truncate">Product demo</span>
+                  <span className="text-[11px] text-gs-muted">Queued</span>
+                </div>
+                <div className="gs-context-card mt-3">
+                  <div className="flex items-center gap-1.5 mb-1 text-gs-text">
+                    <span className="material-symbols-outlined text-[14px] text-gs-info">menu_book</span>
+                    RAG context
                   </div>
+                  Pulled 4 chunks from your attached pitch notes and brand guidelines.
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Pricing Preview Section */}
-        <section id="pricing" className="w-full px-gutter py-section">
-          <div className="max-w-4xl mx-auto flex flex-col items-center text-center">
-            <h2 className="font-headline-md text-headline-md text-primary tracking-tight mb-xs">Simple, Transparent Pricing</h2>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-xl max-w-lg">Start for free, upgrade when your team needs more power.</p>
-            
-            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-md text-left">
-              {/* Free Plan */}
-              <div className="rounded-2xl bg-surface border border-border p-lg flex flex-col h-full">
-                <h3 className="font-headline-sm text-headline-sm text-primary mb-1">Starter</h3>
-                <p className="font-body-sm text-body-sm text-on-surface-variant mb-md">Perfect for individuals trying out GenStackAI.</p>
-                <div className="flex items-baseline gap-1 mb-lg">
-                  <span className="font-headline-lg text-headline-lg text-primary">$0</span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">/month</span>
+        <section id="features" className="w-full px-gutter py-section border-t border-gs-border">
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-10 max-w-xl">
+              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">
+                Built for AI-native workflows
+              </h2>
+              <p className="text-gs-secondary text-sm md:text-base">
+                Chat, thinking traces, task rows, and context cards — the same language as
+                modern agent UIs, applied to decks.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                {
+                  icon: "psychology",
+                  title: "Structured planning",
+                  body: "Discovery chat produces ordered slide plans with layout skills and parallel generation.",
+                },
+                {
+                  icon: "hub",
+                  title: "Memory + RAG",
+                  body: "Brand voice, preferences, and attached sources stay in context across every deck.",
+                },
+                {
+                  icon: "palette",
+                  title: "Brand-aware export",
+                  body: "Kits, templates, and PPTX/PDF export that respect your visual system.",
+                },
+              ].map((f) => (
+                <div key={f.title} className="gs-card-hover p-5">
+                  <div className="w-9 h-9 rounded-md bg-gs-accent-soft border border-gs-accent/20 flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-[18px] text-gs-accent">{f.icon}</span>
+                  </div>
+                  <h3 className="text-[15px] font-semibold mb-1.5">{f.title}</h3>
+                  <p className="text-sm text-gs-secondary leading-relaxed">{f.body}</p>
                 </div>
-                <ul className="flex flex-col gap-3 mb-xl flex-grow">
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="w-full px-gutter py-section border-t border-gs-border">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">
+              Simple pricing
+            </h2>
+            <p className="text-gs-secondary text-sm mb-10">Start free. Upgrade when your team scales.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+              <div className="gs-card p-6">
+                <h3 className="font-semibold mb-1">Starter</h3>
+                <p className="text-sm text-gs-secondary mb-4">For individuals exploring GenStack.</p>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-3xl font-semibold">$0</span>
+                  <span className="text-sm text-gs-muted">/month</span>
+                </div>
+                <ul className="space-y-2 mb-8 text-sm text-gs-secondary">
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
                     Up to 3 projects
                   </li>
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
                     Basic templates
                   </li>
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
                     Standard export
                   </li>
                 </ul>
-                <button className="w-full font-label-lg text-label-lg bg-tertiary text-primary border border-border h-[40px] rounded-full hover:bg-surface-variant transition-colors mt-auto">
-                  Start Free
-                </button>
+                <Link href="/deck/new" className="gs-btn-secondary w-full">
+                  Start free
+                </Link>
               </div>
 
-              {/* Pro Plan */}
-              <div className="rounded-2xl bg-surface-container-high border-2 border-border p-lg flex flex-col h-full relative overflow-hidden">
-                {/* Highlight accent */}
-                <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
-                <h3 className="font-headline-sm text-headline-sm text-primary mb-1">Professional</h3>
-                <p className="font-body-sm text-body-sm text-on-surface-variant mb-md">For teams that need advanced control.</p>
-                <div className="flex items-baseline gap-1 mb-lg">
-                  <span className="font-headline-lg text-headline-lg text-primary">$29</span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">/user/month</span>
+              <div className="gs-card p-6 relative overflow-hidden border-gs-accent/40">
+                <div className="absolute top-0 left-0 w-full h-0.5 bg-gs-accent" />
+                <Chip tone="accent" className="mb-3">
+                  Popular
+                </Chip>
+                <h3 className="font-semibold mb-1">Professional</h3>
+                <p className="text-sm text-gs-secondary mb-4">For teams that need advanced control.</p>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-3xl font-semibold">$29</span>
+                  <span className="text-sm text-gs-muted">/user/month</span>
                 </div>
-                <ul className="flex flex-col gap-3 mb-xl flex-grow">
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                <ul className="space-y-2 mb-8 text-sm text-gs-secondary">
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
                     Unlimited projects
                   </li>
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
-                    Premium component library
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
+                    Brand kits + memory
                   </li>
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
-                    Audience analytics
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
+                    RAG from docs & URLs
                   </li>
-                  <li className="flex items-center gap-3 font-body-sm text-body-sm text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
-                    Custom branding
+                  <li className="flex gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-gs-accent">check</span>
+                    Priority generation
                   </li>
                 </ul>
-                <button className="w-full font-label-lg text-label-lg bg-primary text-on-primary h-[40px] rounded-full hover:opacity-90 transition-opacity mt-auto">
+                <Link href="/deck/new" className="gs-btn-primary w-full">
                   Upgrade to Pro
-                </button>
+                </Link>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-xl px-gutter flex flex-col md:flex-row justify-between items-center gap-md bg-background border-t border-border mt-section">
-        <span className="font-headline-sm text-headline-sm text-primary tracking-tight">GenStackAI</span>
-        <div className="flex items-center gap-md">
-          <Link className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy Policy</Link>
-          <Link className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Terms of Service</Link>
-          <Link className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Contact</Link>
+      <footer className="w-full py-10 px-gutter flex flex-col md:flex-row justify-between items-center gap-4 border-t border-gs-border">
+        <span className="text-sm font-semibold tracking-tight">GenStack</span>
+        <div className="flex items-center gap-4 text-xs text-gs-muted">
+          <a className="hover:text-gs-text" href="#">
+            Privacy
+          </a>
+          <a className="hover:text-gs-text" href="#">
+            Terms
+          </a>
+          <a className="hover:text-gs-text" href="#">
+            Contact
+          </a>
         </div>
-        <span className="font-body-sm text-body-sm text-on-surface-variant">© {new Date().getFullYear()} GenStackAI. All rights reserved.</span>
+        <span className="text-xs text-gs-muted">
+          © {new Date().getFullYear()} GenStack. All rights reserved.
+        </span>
       </footer>
     </div>
   );
 }
-

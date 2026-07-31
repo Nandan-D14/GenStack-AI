@@ -71,10 +71,46 @@ export const list = query({
       return [];
     }
 
-    return await ctx.db
+    const owned = await ctx.db
       .query("decks")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
+
+    // Also include decks shared with this user as a collaborator.
+    const identity = await ctx.auth.getUserIdentity();
+    const email = identity?.email;
+    if (!email) return owned;
+
+    const all = await ctx.db.query("decks").collect();
+    const shared = all.filter(
+      (d) =>
+        d.userId !== userId &&
+        Array.isArray(d.collaborators) &&
+        d.collaborators.includes(email),
+    );
+    return [...owned, ...shared];
+  },
+});
+
+// Invite a collaborator (by email) to edit a deck. Enables live co-editing
+// through Convex's reactive queries.
+export const addCollaborator = mutation({
+  args: { id: v.id("decks"), email: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getOrCreateUser(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    const deck = await ctx.db.get(args.id);
+    if (!deck) throw new Error("Deck not found");
+    if (deck.userId !== userId) throw new Error("Unauthorized");
+    const email = args.email.trim().toLowerCase();
+    const current = deck.collaborators || [];
+    if (!current.includes(email)) {
+      await ctx.db.patch(args.id, {
+        collaborators: [...current, email],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return { success: true };
   },
 });
 
@@ -92,7 +128,14 @@ export const getById = query({
       return null;
     }
 
-    if (deck.userId !== userId) {
+    // Allow the owner or any invited collaborator (by email) to open the deck.
+    const identity = await ctx.auth.getUserIdentity();
+    const isOwner = deck.userId === userId;
+    const isCollaborator =
+      !!identity?.email &&
+      Array.isArray(deck.collaborators) &&
+      deck.collaborators.includes(identity.email);
+    if (!isOwner && !isCollaborator) {
       return null;
     }
 
@@ -104,9 +147,13 @@ export const getById = query({
     // Sort slides by order ascending
     slides.sort((a, b) => a.order - b.order);
 
+    let brandKit = null;
+    if (deck.brandKitId) brandKit = await ctx.db.get(deck.brandKitId);
+
     return {
       ...deck,
       slides,
+      brandKit,
     };
   },
 });
@@ -119,6 +166,8 @@ export const create = mutation({
     type: v.string(),
     tone: v.string(),
     audience: v.optional(v.string()),
+    slidesCount: v.optional(v.float64()),
+    designSkill: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getOrCreateUser(ctx);
@@ -133,6 +182,8 @@ export const create = mutation({
       type: args.type,
       tone: args.tone,
       audience: args.audience,
+      slidesCount: args.slidesCount,
+      designSkill: args.designSkill,
       status: "draft",
       userId,
       createdAt: now,
@@ -334,7 +385,60 @@ export const getDeckForExport = internalQuery({
 
     slides.sort((a, b) => a.order - b.order);
 
-    return { ...deck, slides };
+    // Attach the brand kit (if any) so exports can be brand-aware.
+    let brandKit = null;
+    if (deck.brandKitId) {
+      brandKit = await ctx.db.get(deck.brandKitId);
+    }
+
+    return { ...deck, slides, brandKit };
+  },
+});
+
+// Generate (or return existing) a public share token for a deck.
+export const shareDeck = mutation({
+  args: { id: v.id("decks") },
+  handler: async (ctx, args) => {
+    const userId = await getOrCreateUser(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    const deck = await ctx.db.get(args.id);
+    if (!deck) throw new Error("Deck not found");
+    if (deck.userId !== userId) throw new Error("Unauthorized");
+    if (deck.shareId) return { shareId: deck.shareId };
+    const shareId = `${args.id}-${Math.random().toString(36).slice(2, 10)}`;
+    await ctx.db.patch(args.id, { shareId, updatedAt: new Date().toISOString() });
+    return { shareId };
+  },
+});
+
+// Public, read-only deck fetch by share token (no auth).
+export const getByShareId = query({
+  args: { shareId: v.string() },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db
+      .query("decks")
+      .withIndex("by_shareId", (q) => q.eq("shareId", args.shareId))
+      .unique();
+    if (!deck) return null;
+    const slides = await ctx.db
+      .query("slides")
+      .withIndex("by_deckId", (q) => q.eq("deckId", deck._id))
+      .collect();
+    slides.sort((a, b) => a.order - b.order);
+    let brandKit = null;
+    if (deck.brandKitId) brandKit = await ctx.db.get(deck.brandKitId);
+    return {
+      title: deck.title,
+      objective: deck.objective,
+      slides: slides.map((s) => ({
+        title: s.title,
+        layout: s.layout,
+        content: s.content,
+        speakerNotes: s.speakerNotes,
+        imageUrl: (s as any).imageUrl,
+      })),
+      brandKit,
+    };
   },
 });
 
@@ -365,11 +469,12 @@ export const updatePlan = mutation({
   },
 });
 
-// Update chat history for a deck
+// Update planner chat history (and optional compacted summary) for a deck
 export const updateChatHistory = mutation({
   args: {
     id: v.id("decks"),
     chatHistory: v.string(), // JSON string
+    chatSummary: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const deck = await ctx.db.get(args.id);
@@ -378,6 +483,26 @@ export const updateChatHistory = mutation({
     }
     await ctx.db.patch(args.id, {
       chatHistory: args.chatHistory,
+      ...(args.chatSummary !== undefined ? { chatSummary: args.chatSummary } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  },
+});
+
+// Update the editor copilot's chat history (kept separate from the planner's)
+export const updateEditorChatHistory = mutation({
+  args: {
+    id: v.id("decks"),
+    editorChatHistory: v.string(), // JSON string
+  },
+  handler: async (ctx, args) => {
+    const deck = await ctx.db.get(args.id);
+    if (!deck) {
+      throw new Error("Deck not found");
+    }
+    await ctx.db.patch(args.id, {
+      editorChatHistory: args.editorChatHistory,
       updatedAt: new Date().toISOString(),
     });
     return { success: true };

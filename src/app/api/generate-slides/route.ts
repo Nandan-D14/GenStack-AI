@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient, extractJson } from "@/server/ai";
+import { generateStructured } from "@/server/generate";
+import { SlidesResponseSchema, normalizeSlidesPayload } from "@/server/schemas";
+import { generateSlidesSystem } from "@/server/prompts";
 
 
 
@@ -77,7 +79,7 @@ function generateFallbackSlides(prompt: string, tone: string, audience: string):
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, deckId, tone, audience } = await req.json();
+    const { prompt, deckId, tone, audience, slidesCount: requestedCount, skill } = await req.json();
 
     if (!prompt || !deckId) {
       return NextResponse.json(
@@ -86,89 +88,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { client, model } = getAIClient();
+    const slidesCount = Math.min(Math.max(Number(requestedCount) || 7, 3), 30);
 
-    const slidesCount = 7;
-
-    const systemPrompt = `You are an expert presentation designer. Create exactly ${slidesCount} slides for a professional presentation.
-
-CONTENT QUALITY RULES:
-- Every bullet point must contain SPECIFIC, substantive information — no filler
-- Content must be deeply relevant to the topic, not generic
-- Use concrete examples, real data formats, and actionable language
-
-LAYOUT-SPECIFIC RULES:
-- "title": 1-2 bullets as subtitle (the value proposition or tagline)
-- "content": 4-5 substantive key points, each 8-15 words
-- "two_column": 6 bullets — first 3 for left column, last 3 for right column  
-- "data": Bullets MUST be "NUMBER: Description" format (e.g., "$4.2B: Market size by 2027")
-- "chart": Bullets as timeline phases with metrics (e.g., "Phase 1: Launch with 50 pilot users, 12% adoption")
-- "quote": EXACTLY 2 bullets: ["The actual quote text", "— Author Name, Title"]
-- "closing": 3 specific action items or key takeaways
-
-STRUCTURE:
-- First slide: "title" layout
-- Last slide: "closing" layout
-- Tone: ${tone || "professional"}
-- Audience: ${audience || "general"}
-
-Return ONLY a valid JSON object. No markdown, no explanation:
-{
-  "slides": [
-    {
-      "title": "Specific Slide Title",
-      "layout": "title|content|data|chart|quote|two_column|closing",
-      "bullets": ["bullet 1", "bullet 2"],
-      "speakerNotes": "Natural-sounding 2-3 sentence script"
-    }
-  ]
-}`;
-
-    // Retry up to 3 times
-    let lastError = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const response = await client.chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Generate a ${slidesCount}-slide presentation about: "${prompt}"`,
-            },
-          ],
-        });
-
-        const rawContent = response.choices[0]?.message?.content || "";
-        const parsed = extractJson(rawContent);
-
-        let slidesJson: any[];
-        if (Array.isArray(parsed)) {
-          slidesJson = parsed;
-        } else if (parsed && Array.isArray(parsed.slides)) {
-          slidesJson = parsed.slides;
-        } else {
-          throw new Error("Response does not contain a slides array");
-        }
-
-        return NextResponse.json({ slides: slidesJson });
-      } catch (err: any) {
-        lastError = err.message;
-        console.warn(
-          `Slide generation attempt ${attempt + 1} failed:`,
-          lastError
-        );
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-        }
-      }
-    }
-
-    // All retries failed — use high-quality fallback
-    console.warn("All LLM retries exhausted, using fallback slides.");
-    return NextResponse.json({
-      slides: generateFallbackSlides(prompt, tone, audience),
+    const systemPrompt = generateSlidesSystem({
+      slidesCount,
+      tone: tone || "professional",
+      audience: audience || "general",
+      skill: skill || null,
     });
+
+    try {
+      const parsed = await generateStructured({
+        task: "generate-slides",
+        schema: SlidesResponseSchema,
+        schemaName: "SlidesResponse",
+        system: systemPrompt,
+        user: `Generate a ${slidesCount}-slide presentation about: "${prompt}"`,
+        maxRetries: 2,
+        transform: normalizeSlidesPayload,
+      });
+
+      return NextResponse.json({ slides: parsed.slides });
+    } catch (err: any) {
+      // All retries failed — use high-quality fallback
+      console.warn("All LLM retries exhausted, using fallback slides:", err?.message);
+      return NextResponse.json({
+        slides: generateFallbackSlides(prompt, tone, audience),
+      });
+    }
   } catch (error: any) {
     console.error("Error generating slides:", error);
     return NextResponse.json(

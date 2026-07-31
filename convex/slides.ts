@@ -41,6 +41,7 @@ export const updateSlideContent = mutation({
     layout: v.optional(v.string()),
     content: v.optional(v.string()), // JSON string
     c1Dsl: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
     visualSuggestion: v.optional(v.string()),
     speakerNotes: v.optional(v.string()),
     isLocked: v.optional(v.boolean()),

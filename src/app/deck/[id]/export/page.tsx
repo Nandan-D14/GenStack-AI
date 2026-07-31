@@ -5,7 +5,7 @@ import { ArrowLeft, Download, FileDown, FileText, Check, X, Monitor, Palette, Ty
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
 export default function ExportPage() {
@@ -13,32 +13,120 @@ export default function ExportPage() {
   const [format, setFormat] = useState("pptx");
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>("");
+  const [sharing, setSharing] = useState(false);
 
   const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
   const slides = deck?.slides || [];
   const runExportDeck = useAction(api.export.generatePptx);
+  const runShare = useMutation(api.decks.shareDeck);
+  const brandKits = useQuery(api.brandKits.listMine);
+  const runSetBrand = useMutation(api.brandKits.setForDeck);
+  const runAddCollaborator = useMutation(api.decks.addCollaborator);
+  const [collabEmail, setCollabEmail] = useState("");
+  const [collabAdded, setCollabAdded] = useState(false);
 
-  const handleExport = async () => {
-    if (format === "pdf") {
-      alert("PDF export is coming soon! Please use PowerPoint (.pptx) format for now.");
-      return;
-    }
-    setExporting(true);
+  const handleInvite = async () => {
+    if (!collabEmail.trim()) return;
     try {
-      const data = await runExportDeck({ deckId: id as any });
-      setExporting(false);
-      setDone(true);
-      if (data?.downloadUrl) {
-        const a = document.createElement("a");
-        a.href = data.downloadUrl;
-        a.download = data.fileName || `${deck?.title || "presentation"}.pptx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
+      await runAddCollaborator({ id: id as any, email: collabEmail.trim() });
+      setCollabAdded(true);
+      setCollabEmail("");
+      setTimeout(() => setCollabAdded(false), 2500);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const parseBullets = (content: string): string[] => {
+    try {
+      const p = JSON.parse(content || "[]");
+      return Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handlePdfExport = async () => {
+    const { default: JsPDF } = await import("jspdf");
+    const brand: any = (deck as any)?.brandKit || null;
+    const bg = brand?.backgroundColor || "#0F1011";
+    const text = brand?.textColor || "#F7F8F8";
+    const accent = brand?.primaryColor || "#7170FF";
+
+    const pdf = new JsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const W = pdf.internal.pageSize.getWidth();
+    const H = pdf.internal.pageSize.getHeight();
+
+    slides.forEach((slide: any, index: number) => {
+      if (index > 0) pdf.addPage();
+      pdf.setFillColor(bg);
+      pdf.rect(0, 0, W, H, "F");
+      // accent bar
+      pdf.setFillColor(accent);
+      pdf.rect(40, 48, 60, 5, "F");
+      // title
+      pdf.setTextColor(text);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(slide.layout === "title" ? 30 : 22);
+      pdf.text(pdf.splitTextToSize(slide.title || "Untitled", W - 80), 40, 90);
+      // bullets
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(14);
+      let y = 140;
+      for (const b of parseBullets(slide.content)) {
+        const lines = pdf.splitTextToSize(`•  ${b}`, W - 90);
+        pdf.text(lines, 45, y);
+        y += 20 * lines.length + 6;
+        if (y > H - 60) break;
+      }
+      // footer
+      pdf.setFontSize(9);
+      pdf.setTextColor("#94A3B8");
+      pdf.text(`${index + 1} / ${slides.length}`, W - 70, H - 30);
+      pdf.text("GenStack AI", 40, H - 30);
+    });
+
+    pdf.save(`${deck?.title || "presentation"}.pdf`);
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      if (format === "pdf") {
+        await handlePdfExport();
+      } else {
+        const data = await runExportDeck({ deckId: id as any });
+        if (data?.downloadUrl) {
+          const a = document.createElement("a");
+          a.href = data.downloadUrl;
+          a.download = data.fileName || `${deck?.title || "presentation"}.pptx`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      }
+      setDone(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
       setExporting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      const { shareId } = await runShare({ id: id as any });
+      const url = `${window.location.origin}/s/${shareId}`;
+      setShareUrl(url);
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {}
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -139,9 +227,9 @@ export default function ExportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090A] text-foreground">
+    <div className="min-h-screen bg-gs-bg text-foreground">
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-4 border-b border-white/[0.08] bg-[#0F1011]/50 backdrop-blur-md">
+      <div className="flex items-center justify-between px-8 py-4 border-b border-white/[0.08] bg-gs-surface/50 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <Link href={`/deck/${id}/editor`} className="text-default-400 hover:text-white transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -152,12 +240,12 @@ export default function ExportPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="flat" className="bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-xl text-default-300" startContent={<Share2 className="w-4 h-4" />}>
-            Share
+          <Button variant="flat" className="bg-[#151617] border border-white/[0.06] hover:border-white/[0.12] rounded-lg text-default-300" startContent={<Share2 className="w-4 h-4" />} onPress={handleShare} isLoading={sharing}>
+            {shareUrl ? "Link Copied" : "Share"}
           </Button>
           <Button
             color="primary"
-            className="bg-[#7170FF] text-white hover:bg-[#605eff] font-medium rounded-xl shadow-lg shadow-[#7170FF]/20 px-6"
+            className="bg-[#7170FF] text-white hover:bg-[#605eff] font-medium rounded-lg shadow-lg shadow-[#7170FF]/20 px-6"
             startContent={<Download className="w-4 h-4" />}
             onPress={handleExport}
             isLoading={exporting}
@@ -166,6 +254,16 @@ export default function ExportPage() {
           </Button>
         </div>
       </div>
+
+      {shareUrl && (
+        <div className="max-w-6xl mx-auto px-8 pt-4">
+          <div className="flex items-center gap-3 p-3 bg-[#7170FF]/10 border border-[#7170FF]/25 rounded-lg">
+            <Share2 className="w-4 h-4 text-[#7170FF]" />
+            <span className="text-sm text-default-300">Public link (copied):</span>
+            <a href={shareUrl} target="_blank" rel="noreferrer" className="text-sm text-[#7170FF] underline truncate">{shareUrl}</a>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -185,7 +283,7 @@ export default function ExportPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {slides.map((slide: any, index: number) => (
-                <Card key={slide._id} className="bg-[#0F1011] border border-white/[0.06] aspect-video relative overflow-hidden group hover:border-[#7170FF]/40 transition-colors shadow-lg rounded-xl">
+                <Card key={slide._id} className="bg-gs-surface border border-white/[0.06] aspect-video relative overflow-hidden group hover:border-[#7170FF]/40 transition-colors shadow-lg rounded-lg">
                   <CardBody className="p-0 relative h-full">
                     <div className="absolute top-3 left-3 text-[10px] text-default-500 font-mono tracking-wider">
                       {String(index + 1).padStart(2, "0")}
@@ -199,13 +297,13 @@ export default function ExportPage() {
 
           {/* Configuration sidebar */}
           <div className="space-y-6">
-            <Card className="bg-[#0F1011] border border-white/[0.08] shadow-xl rounded-2xl">
+            <Card className="bg-gs-surface border border-white/[0.08] shadow-xl rounded-lg">
               <CardBody className="p-6 space-y-6">
                 <h3 className="font-semibold text-white tracking-tight">Export Format</h3>
                 <RadioGroup value={format} onValueChange={setFormat} classNames={{ wrapper: "gap-4" }}>
                   <Radio value="pptx" classNames={{ wrapper: "border-white/[0.1] bg-[#151617]" }}>
                     <div className="flex items-center gap-3 ml-2">
-                      <div className="w-10 h-10 bg-warning/15 rounded-xl flex items-center justify-center border border-warning/25">
+                      <div className="w-10 h-10 bg-warning/15 rounded-lg flex items-center justify-center border border-warning/25">
                         <FileText className="w-5 h-5 text-warning" />
                       </div>
                       <div>
@@ -216,7 +314,7 @@ export default function ExportPage() {
                   </Radio>
                   <Radio value="pdf" classNames={{ wrapper: "border-white/[0.1] bg-[#151617]" }}>
                     <div className="flex items-center gap-3 ml-2">
-                      <div className="w-10 h-10 bg-danger/15 rounded-xl flex items-center justify-center border border-danger/25">
+                      <div className="w-10 h-10 bg-danger/15 rounded-lg flex items-center justify-center border border-danger/25">
                         <FileDown className="w-5 h-5 text-danger" />
                       </div>
                       <div>
@@ -226,6 +324,47 @@ export default function ExportPage() {
                     </div>
                   </Radio>
                 </RadioGroup>
+
+                <Divider className="bg-white/[0.08]" />
+
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-white tracking-tight">Brand Kit</h3>
+                  <Link href="/settings/brand" className="text-[11px] text-[#7170FF] hover:underline">Manage</Link>
+                </div>
+                <select
+                  value={(deck as any)?.brandKitId || ""}
+                  onChange={(e) =>
+                    runSetBrand({
+                      deckId: id as any,
+                      brandKitId: (e.target.value || undefined) as any,
+                    })
+                  }
+                  className="w-full h-10 rounded-lg bg-[#151617] border border-white/[0.08] text-sm text-default-200 px-3 focus:outline-none focus:border-[#7170FF]"
+                >
+                  <option value="">Default (no brand)</option>
+                  {brandKits?.map((k: any) => (
+                    <option key={k._id} value={k._id}>
+                      {k.name}
+                    </option>
+                  ))}
+                </select>
+
+                <Divider className="bg-white/[0.08]" />
+
+                <h3 className="font-semibold text-white tracking-tight">Collaborators</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    value={collabEmail}
+                    onChange={(e) => setCollabEmail(e.target.value)}
+                    placeholder="teammate@email.com"
+                    className="flex-1 h-10 rounded-lg bg-[#151617] border border-white/[0.08] text-sm text-default-200 px-3 focus:outline-none focus:border-[#7170FF]"
+                  />
+                  <Button size="sm" className="bg-[#7170FF] text-white rounded-lg h-10" onPress={handleInvite}>
+                    {collabAdded ? "Invited" : "Invite"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-default-500">Collaborators can open and edit this deck; changes sync live.</p>
 
                 <Divider className="bg-white/[0.08]" />
 
@@ -293,7 +432,7 @@ export default function ExportPage() {
 
                 <Button
                   color="primary"
-                  className="w-full h-12 bg-[#7170FF] text-white hover:bg-[#605eff] font-medium rounded-xl shadow-lg shadow-[#7170FF]/20"
+                  className="w-full h-12 bg-[#7170FF] text-white hover:bg-[#605eff] font-medium rounded-lg shadow-lg shadow-[#7170FF]/20"
                   size="lg"
                   startContent={done ? <Check className="w-5 h-5" /> : <Download className="w-5 h-5" />}
                   onPress={handleExport}
@@ -302,7 +441,7 @@ export default function ExportPage() {
                   {done ? "Download Ready" : exporting ? "Exporting..." : "Export Presentation"}
                 </Button>
                 {done && (
-                  <div className="p-3 bg-success/15 border border-success/25 rounded-xl text-center">
+                  <div className="p-3 bg-success/15 border border-success/25 rounded-lg text-center">
                     <p className="text-xs text-success font-medium">Export complete! Check your downloads.</p>
                   </div>
                 )}

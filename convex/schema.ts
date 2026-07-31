@@ -29,6 +29,8 @@ export default defineSchema({
     type: v.string(), // "pitch" | "sales" | "marketing" | "training" | "report"
     tone: v.string(), // "formal" | "casual" | "persuasive"
     audience: v.optional(v.string()),
+    slidesCount: v.optional(v.float64()), // user-chosen target slide count
+    designSkill: v.optional(v.string()), // selected design skill/theme id
     status: v.string(), // "draft" | "published" | "archived"
     userId: v.id("users"),
     workspaceId: v.optional(v.id("workspaces")),
@@ -38,10 +40,16 @@ export default defineSchema({
     planItems: v.optional(v.string()), // JSON string of PlanItem[]
     planStatus: v.optional(v.string()), // "planning" | "approved" | "generating" | "done"
     generationMode: v.optional(v.string()), // "custom" | "template"
-    chatHistory: v.optional(v.string()), // JSON string of ChatMessage[]
+    chatHistory: v.optional(v.string()), // JSON string of planner ChatMessage[]
+    chatSummary: v.optional(v.string()), // compacted summary of older planner turns
+    editorChatHistory: v.optional(v.string()), // JSON string of editor copilot ChatMessage[]
+    shareId: v.optional(v.string()), // public share token (read-only web view)
+    collaborators: v.optional(v.array(v.string())), // emails with edit access (live via Convex reactivity)
     createdAt: v.string(),
     updatedAt: v.string(),
-  }).index("by_userId", ["userId"]),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_shareId", ["shareId"]),
 
   slides: defineTable({
     deckId: v.id("decks"),
@@ -50,6 +58,7 @@ export default defineSchema({
     title: v.string(),
     content: v.string(), // JSON string representing slide elements/bullets
     c1Dsl: v.optional(v.string()), // Thesys C1 single-slide artifact DSL
+    imageUrl: v.optional(v.string()), // on-topic slide visual (generated or sourced)
     visualSuggestion: v.string(), // "chart" | "image" | "icon" | "none"
     speakerNotes: v.optional(v.string()),
     isLocked: v.boolean(),
@@ -99,4 +108,29 @@ export default defineSchema({
     fileSize: v.float64(),
     createdAt: v.string(),
   }),
+
+  // Ingested source documents (chunked + embedded) for retrieval-augmented
+  // generation. Embeddings use the 256-dim hashed embedding in embedding.ts.
+  documents: defineTable({
+    deckId: v.id("decks"),
+    source: v.string(), // e.g. a URL, filename, or "notes"
+    chunkIndex: v.float64(),
+    text: v.string(),
+    embedding: v.array(v.float64()),
+    createdAt: v.string(),
+  })
+    .index("by_deckId", ["deckId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 256,
+      filterFields: ["deckId"],
+    }),
+
+  // Long-term, cross-deck memory of a user's preferences and brand voice.
+  userMemory: defineTable({
+    userId: v.id("users"),
+    notes: v.optional(v.string()), // freeform brand voice / preferences notes
+    preferences: v.optional(v.string()), // JSON: { tone, audience, lastTopic, ... }
+    updatedAt: v.string(),
+  }).index("by_userId", ["userId"]),
 });

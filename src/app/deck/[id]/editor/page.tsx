@@ -41,6 +41,7 @@ import {
   Maximize,
   GripVertical,
   FileText,
+  History,
 } from "lucide-react";
 import { C1Component } from "@thesysai/genui-sdk";
 import Link from "next/link";
@@ -50,7 +51,8 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 
 export default function EditorPage() {
-  const { id } = useParams();
+  const rawParams = useParams();
+  const id = Array.isArray(rawParams.id) ? rawParams.id[0] : rawParams.id;
   const router = useRouter();
 
   // Selected slide index
@@ -94,7 +96,10 @@ export default function EditorPage() {
   }, []);
 
   // Convex Queries and Mutations
-  const deck = useQuery(api.decks.getById, id ? { id: id as any } : "skip");
+  const deck = useQuery(
+    api.decks.getById,
+    id && !id.includes("/") ? { id: id as any } : "skip",
+  );
   const slides = deck?.slides || [];
   const activeSlide = slides[selectedSlideIndex];
 
@@ -105,7 +110,13 @@ export default function EditorPage() {
   const runDuplicateSlide = useMutation(api.slides.duplicateSlide);
   const runUpdateSlideOrders = useMutation(api.slides.updateSlideOrders);
   const runUpdateC1Data = useMutation(api.decks.updateC1Data);
-  const runUpdateChatHistory = useMutation(api.decks.updateChatHistory);
+  const runUpdateChatHistory = useMutation(api.decks.updateEditorChatHistory);
+  const runSaveVersion = useMutation(api.versions.saveVersion);
+  const runRestoreVersion = useMutation(api.versions.restoreVersion);
+  const versions = useQuery(
+    api.versions.listVersions,
+    id ? { deckId: id as any } : "skip",
+  );
 
   // Convex action for PPTX generation
   const runGeneratePptx = useAction(api.export.generatePptx);
@@ -114,9 +125,10 @@ export default function EditorPage() {
   const [hasLoadedChat, setHasLoadedChat] = useState(false);
   useEffect(() => {
     if (!deck || hasLoadedChat) return;
-    if (deck.chatHistory) {
+    const editorChat = (deck as any).editorChatHistory;
+    if (editorChat) {
       try {
-        const savedChat = JSON.parse(deck.chatHistory);
+        const savedChat = JSON.parse(editorChat);
         if (Array.isArray(savedChat)) {
           setCanvasChatMessages(savedChat);
         }
@@ -284,7 +296,14 @@ export default function EditorPage() {
       const response = await fetch("/api/generate-slides", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, deckId: id }),
+        body: JSON.stringify({
+          prompt,
+          deckId: id,
+          tone: (deck as any)?.tone || "professional",
+          audience: (deck as any)?.audience || "general",
+          slidesCount: (deck as any)?.slidesCount || 7,
+          skill: (deck as any)?.designSkill || null,
+        }),
       });
 
       if (!response.ok) {
@@ -352,6 +371,7 @@ export default function EditorPage() {
           slides: sanitizedSlides,
           prompt: editPrompt,
           deckId: id,
+          skill: (deck as any)?.designSkill || null,
         }),
       });
 
@@ -467,6 +487,39 @@ export default function EditorPage() {
     });
   };
 
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const handleGenerateImage = async () => {
+    if (!activeSlide) return;
+    setImageGenerating(true);
+    try {
+      let firstBullet = "";
+      try {
+        const arr = JSON.parse(activeSlide.content || "[]");
+        if (Array.isArray(arr) && arr[0]) firstBullet = String(arr[0]);
+      } catch {}
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `${deck?.title || ""} — ${activeSlide.title} ${firstBullet}`.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        await runUpdateSlideContent({ id: activeSlide._id, imageUrl: data.url });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setImageGenerating(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!activeSlide) return;
+    await runUpdateSlideContent({ id: activeSlide._id, imageUrl: "" });
+  };
+
   const handleAddSlide = async () => {
     if (!id) return;
     const nextOrder =
@@ -558,7 +611,7 @@ export default function EditorPage() {
     
     const nextMessages = [...canvasChatMessages, { role: "user" as const, content: msg }];
     setCanvasChatMessages(nextMessages);
-    runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(nextMessages) }).catch(console.error);
+    runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(nextMessages) }).catch(console.error);
     
     setIsChatLoading(true);
 
@@ -582,6 +635,7 @@ export default function EditorPage() {
           })),
           deckTitle: deck?.title || "",
           history: nextMessages.slice(-6),
+          skill: (deck as any)?.designSkill || null,
         }),
       });
 
@@ -595,7 +649,7 @@ export default function EditorPage() {
         { role: "assistant" as const, content: reply },
       ];
       setCanvasChatMessages(finalMessages);
-      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
+      runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(finalMessages) }).catch(console.error);
 
       // Apply slide update if returned
       if (data.slideUpdate && activeSlide) {
@@ -620,7 +674,7 @@ export default function EditorPage() {
         },
       ];
       setCanvasChatMessages(finalMessages);
-      runUpdateChatHistory({ id: id as any, chatHistory: JSON.stringify(finalMessages) }).catch(console.error);
+      runUpdateChatHistory({ id: id as any, editorChatHistory: JSON.stringify(finalMessages) }).catch(console.error);
     } finally {
       setIsChatLoading(false);
     }
@@ -1166,7 +1220,7 @@ export default function EditorPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b] text-zinc-100 font-sans">
+    <div className="h-screen flex flex-col bg-gs-bg text-gs-text font-sans">
       {/* ─────────────────────────────────────────────
           HEADER (Clean SaaS Dark)
           ───────────────────────────────────────────── */}
@@ -1176,18 +1230,18 @@ export default function EditorPage() {
             isIconOnly
             variant="light"
             size="sm"
-            className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+            className="text-gs-muted hover:text-gs-text hover:bg-gs-surface-3 rounded-md transition-colors"
             onPress={() => router.push("/dashboard")}
           >
             <X className="w-4 h-4" />
           </Button>
-          <span className="text-zinc-100 text-[14px] font-medium tracking-wide truncate max-w-md ml-2">
+          <span className="text-gs-text text-[14px] font-medium tracking-wide truncate max-w-md ml-2">
             {deck?.title || "Loading presentation..."}
           </span>
           {isGenerating && (
-            <div className="flex items-center gap-2 ml-4 bg-zinc-800 px-3 py-1 rounded-md">
-              <Loader2 className="w-3.5 h-3.5 text-zinc-400 animate-spin" />
-              <span className="text-[11px] text-zinc-400 font-medium tracking-wide">
+            <div className="flex items-center gap-2 ml-4 bg-gs-surface-3 px-3 py-1 rounded-md">
+              <Loader2 className="w-3.5 h-3.5 text-gs-muted animate-spin" />
+              <span className="text-[11px] text-gs-muted font-medium tracking-wide">
                 {generateStatus}
               </span>
             </div>
@@ -1205,13 +1259,50 @@ export default function EditorPage() {
               isIconOnly
               variant="flat"
               size="sm"
-              className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 rounded-md w-8 h-8 min-w-0 transition-colors"
+              className="bg-gs-surface-3 text-gs-text hover:bg-gs-hover rounded-md w-8 h-8 min-w-0 transition-colors"
               onPress={() => setIsFullscreen(true)}
               disabled={slides.length === 0}
             >
               <Play className="w-4 h-4 ml-0.5" />
             </Button>
           </Tooltip>
+
+          {/* Version history */}
+          <Dropdown classNames={{ content: "bg-gs-surface-2 border border-gs-border min-w-[240px] rounded-md" }}>
+            <DropdownTrigger>
+              <Button
+                isIconOnly
+                variant="flat"
+                size="sm"
+                className="bg-gs-surface-3 text-gs-text hover:bg-gs-hover rounded-md w-8 h-8 min-w-0 transition-colors ml-1"
+                title="Version history"
+              >
+                <History className="w-4 h-4" />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu
+              aria-label="Version history"
+              itemClasses={{ base: "text-gs-secondary data-[hover=true]:bg-gs-surface-3 data-[hover=true]:text-white rounded-md py-2" }}
+              onAction={(key) => {
+                if (key === "save") {
+                  runSaveVersion({ deckId: id as any }).catch(console.error);
+                } else {
+                  runRestoreVersion({ versionId: key as any }).catch(console.error);
+                }
+              }}
+            >
+              {[
+                <DropdownItem key="save" startContent={<CheckCircle className="w-4 h-4" />}>
+                  Save current version
+                </DropdownItem>,
+                ...(versions || []).map((v: any) => (
+                  <DropdownItem key={v._id} startContent={<History className="w-4 h-4" />}>
+                    {`Restore: ${v.label}`}
+                  </DropdownItem>
+                )),
+              ]}
+            </DropdownMenu>
+          </Dropdown>
 
           {/* Export PPTX button */}
           <Tooltip
@@ -1223,7 +1314,7 @@ export default function EditorPage() {
               isIconOnly
               variant="flat"
               size="sm"
-              className="bg-zinc-800 text-zinc-100 hover:bg-zinc-700 rounded-md w-8 h-8 min-w-0 transition-colors ml-1"
+              className="bg-gs-surface-3 text-gs-text hover:bg-gs-hover rounded-md w-8 h-8 min-w-0 transition-colors ml-1"
               onPress={handlePptxExport}
               isLoading={isExporting}
               disabled={slides.length === 0}
@@ -1240,15 +1331,15 @@ export default function EditorPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT SIDEBAR: Slide thumbnails */}
         <div className="w-[260px] bg-transparent flex flex-col shrink-0 select-none pl-4 pb-4 pt-2">
-          <div className="flex-1 flex flex-col bg-[#121214] border border-zinc-800/80 rounded-2xl overflow-hidden shadow-lg">
-            <div className="px-5 py-3 flex items-center justify-between shrink-0 bg-[#121214] z-10">
-              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+          <div className="flex-1 flex flex-col bg-gs-surface border border-gs-border/80 rounded-2xl overflow-hidden shadow-lg">
+            <div className="px-5 py-3 flex items-center justify-between shrink-0 bg-gs-surface z-10">
+              <span className="text-[11px] font-semibold text-gs-muted uppercase tracking-wider">
                 Slides
               </span>
               <Button
                 size="sm"
                 variant="flat"
-                className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 h-7 px-3 font-medium text-[11px] min-w-0 rounded-md transition-colors"
+                className="bg-gs-surface-3 text-gs-secondary hover:bg-gs-hover hover:text-gs-text h-7 px-3 font-medium text-[11px] min-w-0 rounded-md transition-colors"
                 startContent={<Plus className="w-3.5 h-3.5" />}
                 onPress={handleAddSlide}
               >
@@ -1258,7 +1349,7 @@ export default function EditorPage() {
 
             <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 scrollbar-none">
               {slides.length === 0 ? (
-                <div className="text-center py-8 text-[12px] text-zinc-500">
+                <div className="text-center py-8 text-[12px] text-gs-muted">
                   No slides
                 </div>
               ) : (
@@ -1289,7 +1380,7 @@ export default function EditorPage() {
                       }}
                     >
                       <div className="w-full flex items-center gap-2 relative group/slide">
-                        <div className="cursor-grab active:cursor-grabbing opacity-0 group-hover/slide:opacity-100 transition-opacity absolute -left-2 text-zinc-500 hover:text-zinc-300 z-10 bg-[#121214] rounded shadow-sm py-1">
+                        <div className="cursor-grab active:cursor-grabbing opacity-0 group-hover/slide:opacity-100 transition-opacity absolute -left-2 text-gs-muted hover:text-gs-secondary z-10 bg-gs-surface rounded shadow-sm py-1">
                           <GripVertical className="w-4 h-4" />
                         </div>
                         <button
@@ -1300,7 +1391,7 @@ export default function EditorPage() {
                           className={`w-full aspect-video rounded-xl overflow-hidden transition-all duration-300 border-[2px] text-left relative ${
                             isSelected
                               ? "border-zinc-300 shadow-sm scale-[1.02]"
-                              : "border-[#1e1e21] hover:border-zinc-600 opacity-80 hover:opacity-100 bg-[#09090b]"
+                              : "border-gs-border hover:border-gs-border-strong opacity-80 hover:opacity-100 bg-gs-bg"
                           }`}
                         >
                           {renderThumbnailPreview(slide)}
@@ -1310,7 +1401,7 @@ export default function EditorPage() {
                         className={`text-[16px] mt-3 font-medium transition-colors duration-200 ${
                           isSelected
                             ? "text-white"
-                            : "text-zinc-300 group-hover:text-white"
+                            : "text-gs-secondary group-hover:text-white"
                         }`}
                       >
                         {idx + 1}
@@ -1324,22 +1415,22 @@ export default function EditorPage() {
         </div>
 
         {/* CENTER AREA: Widescreen slide player canvas */}
-        <div className="flex-1 flex flex-col bg-[#09090b] relative overflow-hidden">
+        <div className="flex-1 flex flex-col bg-gs-bg relative overflow-hidden">
           {/* Zoom Toolbar Overlay */}
           {slides.length > 0 && !showAll && (
-            <div className="absolute top-6 right-6 z-10 flex items-center bg-zinc-900 border border-zinc-800 rounded-md shadow-sm overflow-hidden p-1 gap-1">
+            <div className="absolute top-6 right-6 z-10 flex items-center bg-gs-surface-2 border border-gs-border rounded-md shadow-sm overflow-hidden p-1 gap-1">
               <Tooltip content="Zoom Out">
                 <Button
                   isIconOnly
                   variant="light"
                   size="sm"
-                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  className="text-gs-muted hover:text-gs-text min-w-8 w-8 h-8 rounded-md"
                   onPress={handleZoomOut}
                 >
                   <ZoomOut className="w-4 h-4" />
                 </Button>
               </Tooltip>
-              <div className="w-12 text-center text-[12px] font-medium text-zinc-300 select-none">
+              <div className="w-12 text-center text-[12px] font-medium text-gs-secondary select-none">
                 {Math.round(zoom * 100)}%
               </div>
               <Tooltip content="Zoom In">
@@ -1347,7 +1438,7 @@ export default function EditorPage() {
                   isIconOnly
                   variant="light"
                   size="sm"
-                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  className="text-gs-muted hover:text-gs-text min-w-8 w-8 h-8 rounded-md"
                   onPress={handleZoomIn}
                 >
                   <ZoomIn className="w-4 h-4" />
@@ -1355,14 +1446,14 @@ export default function EditorPage() {
               </Tooltip>
               <Divider
                 orientation="vertical"
-                className="h-4 bg-zinc-800 mx-1"
+                className="h-4 bg-gs-surface-3 mx-1"
               />
               <Tooltip content="Reset Zoom">
                 <Button
                   isIconOnly
                   variant="light"
                   size="sm"
-                  className="text-zinc-400 hover:text-zinc-100 min-w-8 w-8 h-8 rounded-md"
+                  className="text-gs-muted hover:text-gs-text min-w-8 w-8 h-8 rounded-md"
                   onPress={handleResetZoom}
                 >
                   <Maximize className="w-4 h-4" />
@@ -1381,20 +1472,20 @@ export default function EditorPage() {
           >
             {isGenerating ? (
               <div className="text-center py-12 pointer-events-none">
-                <Loader2 className="w-8 h-8 text-zinc-400 mx-auto mb-4 animate-spin" />
-                <p className="text-[14px] text-zinc-300 font-medium">
+                <Loader2 className="w-8 h-8 text-gs-muted mx-auto mb-4 animate-spin" />
+                <p className="text-[14px] text-gs-secondary font-medium">
                   Generating with AI...
                 </p>
-                <p className="text-[12px] text-zinc-500 mt-1">
+                <p className="text-[12px] text-gs-muted mt-1">
                   {generateStatus}
                 </p>
               </div>
             ) : slides.length === 0 ? (
-              <div className="text-center py-12 bg-[#18181b] rounded-xl border border-zinc-800 shadow-sm p-10 max-w-md w-full pointer-events-none">
-                <p className="text-[16px] text-zinc-100 font-medium tracking-tight mb-2">
+              <div className="text-center py-12 bg-gs-surface-2 rounded-xl border border-gs-border shadow-sm p-10 max-w-md w-full pointer-events-none">
+                <p className="text-[16px] text-gs-text font-medium tracking-tight mb-2">
                   Start building slides
                 </p>
-                <p className="text-[13px] text-zinc-400 leading-relaxed mb-6">
+                <p className="text-[13px] text-gs-muted leading-relaxed mb-6">
                   Let AI draft your deck in seconds, or start from scratch and
                   add slides manually.
                 </p>
@@ -1413,7 +1504,7 @@ export default function EditorPage() {
                   <Button
                     variant="bordered"
                     size="md"
-                    className="border-zinc-800 text-zinc-300 w-full hover:bg-zinc-800 hover:text-zinc-100 rounded-md h-10 font-medium transition-colors"
+                    className="border-gs-border text-gs-secondary w-full hover:bg-gs-surface-3 hover:text-gs-text rounded-md h-10 font-medium transition-colors"
                     startContent={<Plus className="w-4 h-4" />}
                     onPress={handleAddSlide}
                   >
@@ -1435,12 +1526,12 @@ export default function EditorPage() {
                         className={`w-full aspect-video rounded-md overflow-hidden border transition-all hover:scale-[1.02] ${
                           idx === selectedSlideIndex
                             ? "border-blue-500 shadow-sm"
-                            : "border-zinc-800 hover:border-zinc-700"
+                            : "border-gs-border hover:border-gs-border-strong"
                         }`}
                       >
                         {renderThumbnailPreview(slide)}
                       </button>
-                      <span className="text-[11px] text-zinc-500 mt-2 font-medium">
+                      <span className="text-[11px] text-gs-muted mt-2 font-medium">
                         Slide {idx + 1}
                       </span>
                     </div>
@@ -1450,7 +1541,7 @@ export default function EditorPage() {
             ) : (
               /* SINGLE SLIDE CANVAS */
               <div
-                className="w-full max-w-[960px] aspect-video bg-[#18181b] rounded-lg border border-zinc-800 shadow-md relative overflow-hidden flex flex-col justify-center pointer-events-auto origin-center transition-transform"
+                className="w-full max-w-[960px] aspect-video bg-gs-surface-2 rounded-lg border border-gs-border shadow-md relative overflow-hidden flex flex-col justify-center pointer-events-auto origin-center transition-transform"
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                   willChange: "transform",
@@ -1464,21 +1555,30 @@ export default function EditorPage() {
                   });
                 }}
               >
-                {renderCanvasSlide(
-                  activeSlide,
-                  getActiveBullets(activeSlide),
-                  true,
+                {(activeSlide as any)?.imageUrl && (
+                  <img
+                    src={(activeSlide as any).imageUrl}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none"
+                  />
                 )}
+                <div className="relative w-full h-full flex flex-col justify-center">
+                  {renderCanvasSlide(
+                    activeSlide,
+                    getActiveBullets(activeSlide),
+                    true,
+                  )}
+                </div>
               </div>
             )}
 
             {/* SPEAKER NOTES COLLAPSIBLE PANEL */}
             {showSpeakerNotes && activeSlide && !showAll && (
-              <div className="w-full max-w-[960px] mt-4 bg-[#121214] border border-zinc-800/80 rounded-xl p-4 z-10 animate-in slide-in-from-bottom duration-150 shadow-lg pointer-events-auto">
+              <div className="w-full max-w-[960px] mt-4 bg-gs-surface border border-gs-border/80 rounded-xl p-4 z-10 animate-in slide-in-from-bottom duration-150 shadow-lg pointer-events-auto">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-zinc-400" />
-                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    <FileText className="w-4 h-4 text-gs-muted" />
+                    <span className="text-[11px] font-semibold text-gs-muted uppercase tracking-wider">
                       Speaker Notes (Slide {selectedSlideIndex + 1})
                     </span>
                   </div>
@@ -1486,7 +1586,7 @@ export default function EditorPage() {
                     isIconOnly
                     variant="light"
                     size="sm"
-                    className="text-zinc-500 hover:text-zinc-200 h-6 w-6 min-w-0"
+                    className="text-gs-muted hover:text-zinc-200 h-6 w-6 min-w-0"
                     onPress={() => setShowSpeakerNotes(false)}
                   >
                     <X className="w-4 h-4" />
@@ -1499,8 +1599,8 @@ export default function EditorPage() {
                   minRows={2}
                   maxRows={4}
                   classNames={{
-                    inputWrapper: "border-zinc-800 hover:border-zinc-700 focus-within:!border-zinc-500 bg-[#09090b] transition-colors rounded-lg",
-                    input: "text-[12px] font-medium text-zinc-200 placeholder:text-zinc-500 leading-relaxed",
+                    inputWrapper: "border-gs-border hover:border-gs-border-strong focus-within:!border-zinc-500 bg-gs-bg transition-colors rounded-lg",
+                    input: "text-[12px] font-medium text-zinc-200 placeholder:text-gs-muted leading-relaxed",
                   }}
                   value={activeSlide?.speakerNotes || ""}
                   onChange={(e) => handleUpdateSlideSpeakerNotes(e.target.value)}
@@ -1511,13 +1611,13 @@ export default function EditorPage() {
 
           {/* BOTTOM CONTROLS PILL BAR */}
           {slides.length > 0 && !showAll && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#18181b]/95 backdrop-blur-md border border-zinc-800 px-5 py-2.5 rounded-xl flex items-center gap-4 text-zinc-100 shadow-2xl z-20 select-none">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gs-surface-2/95 backdrop-blur-md border border-gs-border px-5 py-2.5 rounded-xl flex items-center gap-4 text-gs-text shadow-2xl z-20 select-none">
               {/* Previous Slide */}
               <Button
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg h-8 w-8 min-w-0 transition-colors"
+                className="text-gs-muted hover:text-gs-text hover:bg-gs-surface-3 rounded-lg h-8 w-8 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === 0}
                 onPress={() => setSelectedSlideIndex((prev) => prev - 1)}
               >
@@ -1535,26 +1635,26 @@ export default function EditorPage() {
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg h-8 w-8 min-w-0 transition-colors"
+                className="text-gs-muted hover:text-gs-text hover:bg-gs-surface-3 rounded-lg h-8 w-8 min-w-0 transition-colors"
                 disabled={selectedSlideIndex === slides.length - 1}
                 onPress={() => setSelectedSlideIndex((prev) => prev + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
 
-              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+              <Divider orientation="vertical" className="bg-gs-surface-3 h-5" />
 
               {/* Layout Dropdown Trigger */}
               <Dropdown
                 classNames={{
-                  content: "bg-zinc-900 border border-zinc-800 min-w-[180px] rounded-lg shadow-xl",
+                  content: "bg-gs-surface-2 border border-gs-border min-w-[180px] rounded-lg shadow-xl",
                 }}
               >
                 <DropdownTrigger>
                   <Button
                     size="sm"
                     variant="flat"
-                    className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 h-8 px-3 text-[11px] font-medium rounded-lg transition-colors"
+                    className="bg-gs-surface-3 text-gs-secondary hover:bg-gs-hover hover:text-gs-text h-8 px-3 text-[11px] font-medium rounded-lg transition-colors"
                     startContent={<LayoutGrid className="w-3.5 h-3.5" />}
                   >
                     Layout: {activeSlide?.layout ? activeSlide.layout.replace("_", " ").toUpperCase() : "SELECT"}
@@ -1563,7 +1663,7 @@ export default function EditorPage() {
                 <DropdownMenu
                   aria-label="Slide layouts"
                   itemClasses={{
-                    base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-1.5 px-3 rounded-lg text-xs",
+                    base: "text-gs-muted hover:text-gs-text data-[hover=true]:bg-gs-surface-3 data-[hover=true]:text-gs-text py-1.5 px-3 rounded-lg text-xs",
                   }}
                   onAction={(key) => handleUpdateSlideLayout(key as string)}
                 >
@@ -1584,7 +1684,7 @@ export default function EditorPage() {
                 className={`h-8 px-3 text-[11px] font-medium rounded-lg transition-all ${
                   showSpeakerNotes
                     ? "bg-[#7170FF] text-white"
-                    : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                    : "bg-gs-surface-3 text-gs-secondary hover:bg-gs-hover hover:text-gs-text"
                 }`}
                 startContent={<FileText className="w-3.5 h-3.5" />}
                 onPress={() => setShowSpeakerNotes(!showSpeakerNotes)}
@@ -1592,7 +1692,27 @@ export default function EditorPage() {
                 Notes
               </Button>
 
-              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+              {/* AI Image button */}
+              <Button
+                size="sm"
+                variant="flat"
+                isLoading={imageGenerating}
+                className={`h-8 px-3 text-[11px] font-medium rounded-lg transition-all ${
+                  (activeSlide as any)?.imageUrl
+                    ? "bg-emerald-600/80 text-white"
+                    : "bg-gs-surface-3 text-gs-secondary hover:bg-gs-hover hover:text-gs-text"
+                }`}
+                startContent={!imageGenerating && <Wand2 className="w-3.5 h-3.5" />}
+                onPress={
+                  (activeSlide as any)?.imageUrl
+                    ? handleRemoveImage
+                    : handleGenerateImage
+                }
+              >
+                {(activeSlide as any)?.imageUrl ? "Remove Image" : "AI Image"}
+              </Button>
+
+              <Divider orientation="vertical" className="bg-gs-surface-3 h-5" />
 
               {/* Quick Operations (Duplicate/Delete) */}
               <div className="flex items-center gap-1">
@@ -1601,7 +1721,7 @@ export default function EditorPage() {
                     isIconOnly
                     size="sm"
                     variant="light"
-                    className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 h-8 w-8 min-w-0 rounded-lg transition-colors"
+                    className="text-gs-muted hover:text-gs-text hover:bg-gs-surface-3 h-8 w-8 min-w-0 rounded-lg transition-colors"
                     onPress={handleDuplicateSlide}
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -1612,7 +1732,7 @@ export default function EditorPage() {
                     isIconOnly
                     size="sm"
                     variant="light"
-                    className="text-zinc-400 hover:text-red-400 hover:bg-zinc-800 h-8 w-8 min-w-0 rounded-lg transition-colors"
+                    className="text-gs-muted hover:text-red-400 hover:bg-gs-surface-3 h-8 w-8 min-w-0 rounded-lg transition-colors"
                     disabled={slides.length <= 1}
                     onPress={handleDeleteSlide}
                   >
@@ -1621,12 +1741,12 @@ export default function EditorPage() {
                 </Tooltip>
               </div>
 
-              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+              <Divider orientation="vertical" className="bg-gs-surface-3 h-5" />
 
               {/* AI Tools Dropdown */}
               <Dropdown
                 classNames={{
-                  content: "bg-zinc-900 border border-zinc-800 min-w-[160px] rounded-lg shadow-xl",
+                  content: "bg-gs-surface-2 border border-gs-border min-w-[160px] rounded-lg shadow-xl",
                 }}
               >
                 <DropdownTrigger>
@@ -1642,7 +1762,7 @@ export default function EditorPage() {
                 <DropdownMenu
                   aria-label="AI Shortcuts"
                   itemClasses={{
-                    base: "text-zinc-400 hover:text-zinc-100 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-zinc-100 py-1.5 px-3 rounded-lg text-xs",
+                    base: "text-gs-muted hover:text-gs-text data-[hover=true]:bg-gs-surface-3 data-[hover=true]:text-gs-text py-1.5 px-3 rounded-lg text-xs",
                   }}
                 >
                   <DropdownItem key="regen" startContent={<Wand2 className="w-3.5 h-3.5" />} onPress={handleRegenerate}>
@@ -1663,11 +1783,11 @@ export default function EditorPage() {
                 </DropdownMenu>
               </Dropdown>
 
-              <Divider orientation="vertical" className="bg-zinc-800 h-5" />
+              <Divider orientation="vertical" className="bg-gs-surface-3 h-5" />
 
               {/* Grid view switcher */}
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                <span className="text-[9px] text-gs-muted font-bold uppercase tracking-wider select-none">
                   Grid
                 </span>
                 <Switch
@@ -1689,7 +1809,7 @@ export default function EditorPage() {
       {/* CONTEXT MENU */}
       {contextMenu && (
         <div
-          className="fixed bg-zinc-950/95 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-[100] min-w-[200px] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+          className="fixed bg-zinc-950/95 border border-gs-border rounded-xl shadow-2xl p-1.5 z-[100] min-w-[200px] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1698,7 +1818,7 @@ export default function EditorPage() {
               handleAddSlide();
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-gs-surface-2 flex items-center gap-2 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add New Slide
@@ -1710,7 +1830,7 @@ export default function EditorPage() {
               handleDuplicateSlide();
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-gs-surface-2 flex items-center gap-2 transition-colors"
           >
             <Copy className="w-3.5 h-3.5" />
             Duplicate Slide
@@ -1729,9 +1849,9 @@ export default function EditorPage() {
             Delete Slide
           </button>
           
-          <Divider className="my-1.5 bg-zinc-800/80" />
+          <Divider className="my-1.5 bg-gs-surface-3/80" />
           
-          <div className="px-3 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+          <div className="px-3 py-1 text-[10px] font-semibold text-gs-muted uppercase tracking-wider">
             Reorder
           </div>
           
@@ -1742,7 +1862,7 @@ export default function EditorPage() {
               setContextMenu(null);
             }}
             disabled={contextMenu.slideIndex === 0}
-            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors disabled:opacity-30"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-gs-surface-2 flex items-center gap-2 transition-colors disabled:opacity-30"
           >
             <ChevronLeft className="rotate-90 w-3.5 h-3.5" />
             Move Up
@@ -1755,15 +1875,15 @@ export default function EditorPage() {
               setContextMenu(null);
             }}
             disabled={contextMenu.slideIndex === slides.length - 1}
-            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-zinc-900 flex items-center gap-2 transition-colors disabled:opacity-30"
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-zinc-350 hover:text-white hover:bg-gs-surface-2 flex items-center gap-2 transition-colors disabled:opacity-30"
           >
             <ChevronRight className="rotate-90 w-3.5 h-3.5" />
             Move Down
           </button>
           
-          <Divider className="my-1.5 bg-zinc-800/80" />
+          <Divider className="my-1.5 bg-gs-surface-3/80" />
           
-          <div className="px-3 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+          <div className="px-3 py-1 text-[10px] font-semibold text-gs-muted uppercase tracking-wider">
             Change Layout
           </div>
           
@@ -1786,7 +1906,7 @@ export default function EditorPage() {
               className={`w-full text-left px-3.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center justify-between ${
                 slides[contextMenu.slideIndex]?.layout === l.key
                   ? "text-blue-400 bg-blue-950/20"
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+                  : "text-gs-muted hover:text-white hover:bg-gs-surface-2"
               }`}
             >
               {l.label}
@@ -1884,20 +2004,20 @@ export default function EditorPage() {
 
       {/* Chat panel */}
       {isChatOpen && (
-        <div className="fixed top-0 right-0 h-screen w-[50vw] max-w-[700px] min-w-[450px] bg-[#09090b]/90 backdrop-blur-lg border-l border-zinc-800/80 shadow-2xl z-50 flex flex-col transition-transform duration-300">
+        <div className="fixed top-0 right-0 h-screen w-[50vw] max-w-[700px] min-w-[450px] bg-gs-bg/90 backdrop-blur-lg border-l border-gs-border/80 shadow-2xl z-50 flex flex-col transition-transform duration-300">
           {/* Panel header */}
-          <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60 backdrop-blur-md flex-shrink-0">
+          <div className="px-6 py-4 border-b border-gs-border flex items-center justify-between bg-zinc-950/60 backdrop-blur-md flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center">
-                <span className="material-symbols-outlined text-zinc-100 text-[18px]">
+              <div className="w-8 h-8 rounded-lg bg-gs-surface-2 border border-zinc-850 flex items-center justify-center">
+                <span className="material-symbols-outlined text-gs-text text-[18px]">
                   smart_toy
                 </span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-100">
+                <p className="text-sm font-semibold text-gs-text">
                   AI Slide Assistant
                 </p>
-                <p className="text-[11px] text-zinc-500 mt-0.5">
+                <p className="text-[11px] text-gs-muted mt-0.5">
                   {activeSlide
                     ? `Editing Slide ${selectedSlideIndex + 1}: ${activeSlide.title.slice(0, 24)}${activeSlide.title.length > 24 ? "..." : ""}`
                     : "No slide selected"}
@@ -1907,7 +2027,7 @@ export default function EditorPage() {
             
             <button
               onClick={() => setIsChatOpen(false)}
-              className="w-8 h-8 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 flex items-center justify-center transition-colors"
+              className="w-8 h-8 rounded-md bg-gs-surface-2 border border-gs-border text-gs-muted hover:text-gs-text flex items-center justify-center transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">
                 close
@@ -1920,15 +2040,15 @@ export default function EditorPage() {
             {canvasChatMessages.length === 0 && (
               <div className="flex flex-col justify-center h-full px-4 text-center space-y-6">
                 <div>
-                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4">
-                    <span className="material-symbols-outlined text-zinc-100 text-[24px]">
+                  <div className="w-12 h-12 rounded-xl bg-gs-surface-2 border border-gs-border flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-gs-text text-[24px]">
                       auto_awesome
                     </span>
                   </div>
                   <h3 className="text-base font-semibold text-zinc-200">
                     GenStack Copilot
                   </h3>
-                  <p className="text-xs text-zinc-400 max-w-sm mx-auto mt-2 leading-relaxed">
+                  <p className="text-xs text-gs-muted max-w-sm mx-auto mt-2 leading-relaxed">
                     Ask me to rewrite content, make speaker notes, format data, change slide layouts, or perform direct slide modifications.
                   </p>
                 </div>
@@ -1943,15 +2063,15 @@ export default function EditorPage() {
                     <button
                       key={chip.label}
                       onClick={() => handleSuggestedPrompt(chip.text)}
-                      className="p-3 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded-xl text-left transition-all hover:border-zinc-700 flex flex-col space-y-1"
+                      className="p-3 bg-gs-surface-2 hover:bg-zinc-850 border border-gs-border rounded-xl text-left transition-all hover:border-gs-border-strong flex flex-col space-y-1"
                     >
                       <div className="flex items-center gap-1.5 text-zinc-200">
-                        <span className="material-symbols-outlined text-[14px] text-zinc-400">
+                        <span className="material-symbols-outlined text-[14px] text-gs-muted">
                           {chip.icon}
                         </span>
                         <span className="text-[11px] font-semibold">{chip.label}</span>
                       </div>
-                      <span className="text-[10px] text-zinc-500 leading-normal">
+                      <span className="text-[10px] text-gs-muted leading-normal">
                         {chip.text}
                       </span>
                     </button>
@@ -1966,8 +2086,8 @@ export default function EditorPage() {
                 className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="material-symbols-outlined text-zinc-100 text-[12px]">
+                  <div className="w-6 h-6 rounded-full bg-gs-surface-2 border border-gs-border flex items-center justify-center flex-shrink-0 mt-1">
+                    <span className="material-symbols-outlined text-gs-text text-[12px]">
                       auto_awesome
                     </span>
                   </div>
@@ -1976,7 +2096,7 @@ export default function EditorPage() {
                   className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
                     msg.role === "user"
                       ? "bg-white text-black rounded-tr-sm font-medium text-[13px] leading-relaxed shadow-sm"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-sm text-[13px] leading-relaxed"
+                      : "bg-gs-surface-2 border border-gs-border text-gs-text rounded-tl-sm text-[13px] leading-relaxed"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1996,12 +2116,12 @@ export default function EditorPage() {
             
             {isChatLoading && (
               <div className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-zinc-100 text-[12px]">
+                <div className="w-6 h-6 rounded-full bg-gs-surface-2 border border-gs-border flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-gs-text text-[12px]">
                     auto_awesome
                   </span>
                 </div>
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="bg-gs-surface-2 border border-gs-border rounded-2xl rounded-tl-sm px-4 py-3">
                   <div className="flex gap-1 items-center h-4">
                     {[0, 150, 300].map((d) => (
                       <div
@@ -2018,8 +2138,8 @@ export default function EditorPage() {
           </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-zinc-800 bg-[#09090b] flex-shrink-0">
-            <div className="flex gap-2 bg-zinc-900 rounded-xl border border-zinc-800 px-3.5 py-2.5">
+          <div className="p-4 border-t border-gs-border bg-gs-bg flex-shrink-0">
+            <div className="flex gap-2 bg-gs-surface-2 rounded-xl border border-gs-border px-3.5 py-2.5">
               <textarea
                 ref={canvasChatInputRef}
                 value={canvasChatInput}
@@ -2033,7 +2153,7 @@ export default function EditorPage() {
                 placeholder="Ask AI to edit this slide..."
                 disabled={isChatLoading}
                 rows={1}
-                className="flex-1 bg-transparent border-none outline-none text-[13px] text-zinc-100 placeholder:text-zinc-500 resize-none min-h-[24px] max-h-[80px] self-center focus:ring-0"
+                className="flex-1 bg-transparent border-none outline-none text-[13px] text-gs-text placeholder:text-gs-muted resize-none min-h-[24px] max-h-[80px] self-center focus:ring-0"
               />
               <button
                 onClick={handleCanvasChat}

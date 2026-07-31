@@ -35,16 +35,22 @@ export const generatePptx = action({
     pptx.title = deck.title || "Untitled Presentation";
     pptx.subject = deck.objective || "";
 
-    // Define a reusable color palette
+    // Normalize a hex color (strip leading #, default on empty).
+    const hex = (c: string | undefined, fallback: string) =>
+      (c || fallback).replace(/^#/, "").slice(0, 6) || fallback;
+
+    // Derive the palette + fonts from the deck's brand kit when present.
+    const brand = deck.brandKit || null;
     const colors = {
-      primary: "4F46E5",     // Indigo
-      secondary: "7C3AED",   // Violet
-      accent: "06B6D4",      // Cyan
-      dark: "1E1E2E",        // Dark background
-      light: "F8FAFC",       // Light text
-      muted: "94A3B8",       // Muted text
+      primary: hex(brand?.primaryColor, "4F46E5"),
+      secondary: hex(brand?.secondaryColor, "7C3AED"),
+      accent: hex(brand?.accentColor, "06B6D4"),
+      dark: hex(brand?.backgroundColor, "1E1E2E"),
+      light: hex(brand?.textColor, "F8FAFC"),
+      muted: "94A3B8",
       white: "FFFFFF",
     };
+    const FONT = brand?.headingFont || brand?.bodyFont || "Arial";
 
     // Helper: add a styled master background to a slide
     function styleSlide(slide: any) {
@@ -59,7 +65,7 @@ export const generatePptx = action({
         w: 2,
         h: 0.3,
         fontSize: 10,
-        fontFace: "Arial",
+        fontFace: FONT,
         color: colors.muted,
         bold: true,
       });
@@ -73,7 +79,7 @@ export const generatePptx = action({
         w: 1.5,
         h: 0.3,
         fontSize: 9,
-        fontFace: "Arial",
+        fontFace: FONT,
         color: colors.muted,
         align: "right",
       });
@@ -111,7 +117,7 @@ export const generatePptx = action({
             w: 12,
             h: 2,
             fontSize: 44,
-            fontFace: "Arial",
+            fontFace: FONT,
             color: colors.white,
             bold: true,
             align: "center",
@@ -125,7 +131,7 @@ export const generatePptx = action({
               w: 10,
               h: 0.8,
               fontSize: 18,
-              fontFace: "Arial",
+              fontFace: FONT,
               color: colors.muted,
               align: "center",
             });
@@ -150,7 +156,7 @@ export const generatePptx = action({
             w: 12,
             h: 1.5,
             fontSize: 40,
-            fontFace: "Arial",
+            fontFace: FONT,
             color: colors.white,
             bold: true,
             align: "center",
@@ -166,7 +172,7 @@ export const generatePptx = action({
                 w: colWidth - 0.3,
                 h: 1.5,
                 fontSize: 16,
-                fontFace: "Arial",
+                fontFace: FONT,
                 color: colors.light,
                 align: "center",
                 valign: "middle",
@@ -188,7 +194,7 @@ export const generatePptx = action({
             w: 12,
             h: 0.8,
             fontSize: 28,
-            fontFace: "Arial",
+            fontFace: FONT,
             color: colors.white,
             bold: true,
           });
@@ -203,7 +209,7 @@ export const generatePptx = action({
                 w: colWidth - 0.4,
                 h: 1.8,
                 fontSize: 16,
-                fontFace: "Arial",
+                fontFace: FONT,
                 color: colors.light,
                 align: "center",
                 valign: "middle",
@@ -224,7 +230,7 @@ export const generatePptx = action({
             w: 12,
             h: 0.8,
             fontSize: 28,
-            fontFace: "Arial",
+            fontFace: FONT,
             color: colors.white,
             bold: true,
           });
@@ -235,7 +241,7 @@ export const generatePptx = action({
               text: b,
               options: {
                 fontSize: 16,
-                fontFace: "Arial",
+                fontFace: FONT,
                 color: colors.light,
                 bullet: {
                   type: "number" as const,
