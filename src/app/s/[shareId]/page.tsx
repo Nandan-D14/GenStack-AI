@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { Chip } from "@/components/ui";
 
 function parseBullets(content: string): string[] {
   try {
@@ -22,45 +23,49 @@ export default function PublicDeckPage() {
 
   if (deck === undefined) {
     return (
-      <div className="min-h-screen bg-[#08090A] text-[#A1A5AE] flex items-center justify-center">
-        Loading presentation...
+      <div className="min-h-screen bg-gs-bg text-gs-secondary flex items-center justify-center text-sm">
+        Loading presentation…
       </div>
     );
   }
 
   if (deck === null) {
     return (
-      <div className="min-h-screen bg-[#08090A] text-[#F7F8F8] flex flex-col items-center justify-center gap-2">
-        <h1 className="text-2xl font-semibold">Presentation not found</h1>
-        <p className="text-[#A1A5AE]">This share link is invalid or was revoked.</p>
+      <div className="min-h-screen bg-gs-bg text-gs-text flex flex-col items-center justify-center gap-2">
+        <h1 className="text-xl font-semibold">Presentation not found</h1>
+        <p className="text-sm text-gs-secondary">
+          This share link is invalid or was revoked.
+        </p>
       </div>
     );
   }
 
   const brand: any = (deck as any).brandKit || null;
-  const bg = brand?.backgroundColor || "#0F1011";
-  const text = brand?.textColor || "#F7F8F8";
+  const bg = brand?.backgroundColor || "#141414";
+  const text = brand?.textColor || "#FAFAFA";
   const accent = brand?.primaryColor || "#7170FF";
 
   return (
-    <div className="min-h-screen bg-[#08090A] text-[#F7F8F8]">
-      <header className="px-8 py-5 border-b border-[#FFFFFF0D] flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{deck.title}</h1>
+    <div className="min-h-screen bg-gs-bg text-gs-text">
+      <header className="px-6 md:px-8 py-4 border-b border-gs-border flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight truncate">{deck.title}</h1>
           {deck.objective && (
-            <p className="text-sm text-[#A1A5AE] mt-0.5 line-clamp-1">{deck.objective}</p>
+            <p className="text-xs text-gs-secondary mt-0.5 line-clamp-1">{deck.objective}</p>
           )}
         </div>
-        <span className="text-xs text-[#6C707A]">{deck.slides.length} slides · GenStack AI</span>
+        <Chip>
+          {deck.slides.length} slides · GenStack
+        </Chip>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-10 space-y-6">
         {deck.slides.map((slide: any, i: number) => {
           const bullets = parseBullets(slide.content);
           return (
             <div
               key={i}
-              className="rounded-2xl border border-[#FFFFFF0D] overflow-hidden aspect-video flex flex-col p-10 relative"
+              className="rounded-xl border border-gs-border overflow-hidden aspect-video flex flex-col p-8 md:p-10 relative shadow-gs-sm"
               style={{ backgroundColor: bg, color: text }}
             >
               {slide.imageUrl && (
@@ -71,15 +76,17 @@ export default function PublicDeckPage() {
                 />
               )}
               <div className="relative flex flex-col h-full">
-                <div className="w-14 h-1 rounded" style={{ backgroundColor: accent }} />
+                <div className="w-12 h-1 rounded" style={{ backgroundColor: accent }} />
                 <h2
-                  className={`font-bold tracking-tight mt-6 ${slide.layout === "title" ? "text-4xl" : "text-2xl"}`}
+                  className={`font-semibold tracking-tight mt-5 ${
+                    slide.layout === "title" ? "text-3xl md:text-4xl" : "text-xl md:text-2xl"
+                  }`}
                 >
                   {slide.title}
                 </h2>
-                <ul className="mt-6 space-y-3 flex-1">
+                <ul className="mt-5 space-y-2.5 flex-1">
                   {bullets.map((b: string, bi: number) => (
-                    <li key={bi} className="flex items-start gap-3 text-lg">
+                    <li key={bi} className="flex items-start gap-3 text-base md:text-lg">
                       <span
                         className="mt-2 w-1.5 h-1.5 rounded-full shrink-0"
                         style={{ backgroundColor: accent }}
@@ -88,7 +95,7 @@ export default function PublicDeckPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="text-xs" style={{ color: "#6C707A" }}>
+                <div className="text-[11px] text-gs-muted font-mono">
                   {i + 1} / {deck.slides.length}
                 </div>
               </div>

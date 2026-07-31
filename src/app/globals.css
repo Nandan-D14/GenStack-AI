@@ -1,48 +1,141 @@
-
-
-@font-face {
-    font-family: '__interDisplay_1ec15e';
-    src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZhrib2Bg-4.ttf') format('truetype');
-    font-weight: 400 700;
-    font-style: normal;
-}
-@font-face {
-    font-family: '__inter_337fc1';
-    src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf') format('truetype');
-    font-weight: 300 500;
-    font-style: normal;
-}
+@import "../styles/tokens.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
-    background-color: #000000;
-    color: #ECEDEE;
+    background-color: var(--gs-bg);
+    color: var(--gs-text);
+    font-family: var(--gs-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(113, 112, 255, 0.35);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gs-border-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .gs-card {
+    @apply bg-gs-surface-2 border border-gs-border rounded-lg shadow-gs-sm;
+  }
+
+  .gs-card-hover {
+    @apply gs-card transition-colors hover:border-gs-border-strong hover:bg-gs-surface-3;
+  }
+
+  .gs-panel {
+    @apply bg-gs-surface border border-gs-border rounded-lg;
+  }
+
+  .gs-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-gs-border bg-gs-surface-2 px-2.5 py-0.5 text-[11px] font-medium text-gs-secondary;
+  }
+
+  .gs-chip-accent {
+    @apply gs-chip border-gs-accent/30 bg-gs-accent-soft text-gs-accent-text;
+  }
+
+  .gs-input {
+    @apply w-full rounded-md border border-gs-border bg-gs-bg px-3 py-2 text-sm text-gs-text placeholder:text-gs-muted transition-colors focus:border-gs-accent/50 focus:outline-none focus:ring-1 focus:ring-gs-accent/40;
+  }
+
+  .gs-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .gs-btn-primary {
+    @apply gs-btn h-9 px-4 bg-gs-accent text-white hover:bg-gs-accent-hover;
+  }
+
+  .gs-btn-secondary {
+    @apply gs-btn h-9 px-4 bg-gs-surface-2 text-gs-text border border-gs-border hover:bg-gs-hover hover:border-gs-border-strong;
+  }
+
+  .gs-btn-ghost {
+    @apply gs-btn h-9 px-3 text-gs-secondary hover:text-gs-text hover:bg-gs-surface-2;
+  }
+
+  .gs-btn-icon {
+    @apply gs-btn h-8 w-8 text-gs-secondary hover:text-gs-text hover:bg-gs-surface-2;
+  }
+
+  .gs-nav-item {
+    @apply flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium text-gs-secondary transition-colors hover:bg-gs-surface-2 hover:text-gs-text;
+  }
+
+  .gs-nav-item-active {
+    @apply gs-nav-item bg-gs-surface-2 text-gs-text;
+  }
+
+  .gs-sidebar {
+    @apply bg-gs-elevated border-r border-gs-border;
+  }
+
+  .gs-thinking {
+    @apply rounded-lg border border-gs-border bg-gs-surface px-3 py-2 text-xs text-gs-secondary font-mono;
+  }
+
+  .gs-task-row {
+    @apply flex items-center gap-3 rounded-md border border-gs-border bg-gs-surface-2 px-3 py-2.5 text-sm;
+  }
+
+  .gs-context-card {
+    @apply rounded-lg border border-gs-border bg-gs-surface p-3 text-xs text-gs-secondary;
+  }
+
+  .gs-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-gs-shimmer;
   }
 }
 
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #52525B;
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 3px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: #71717A;
+    background: rgba(255, 255, 255, 0.2);
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
   .scrollbar-none {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

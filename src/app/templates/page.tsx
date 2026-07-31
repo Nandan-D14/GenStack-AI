@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Button, Card, CardBody } from "@heroui/react";
-import { ArrowLeft, LayoutTemplate, ArrowRight } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { Chip } from "@/components/ui";
 import { TEMPLATES } from "../../lib/templates";
 
 export default function TemplatesPage() {
@@ -48,44 +47,56 @@ export default function TemplatesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090A] text-[#F7F8F8]">
-      <header className="px-8 py-4 border-b border-[#FFFFFF0D] flex items-center gap-4">
-        <Link href="/dashboard" className="text-[#A1A5AE] hover:text-white">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Templates</h1>
-          <p className="text-sm text-[#A1A5AE]">Start from a proven structure and let AI fill it in</p>
+    <AppShell title="Templates">
+      <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold tracking-tight">Start from a proven structure</h2>
+          <p className="text-sm text-gs-secondary mt-1">
+            Pick a template — AI fills slides from your brief and sources.
+          </p>
         </div>
-      </header>
 
-      <div className="max-w-5xl mx-auto px-8 py-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {TEMPLATES.map((tpl) => (
-          <Card key={tpl.id} className="bg-[#0F1011] border border-[#FFFFFF0D] rounded-2xl">
-            <CardBody className="p-5 flex flex-col gap-4 h-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {TEMPLATES.map((tpl) => (
+            <div key={tpl.id} className="gs-card-hover p-5 flex flex-col gap-4 min-h-[220px]">
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: `${tpl.accent}22`, border: `1px solid ${tpl.accent}55` }}
+                className="w-9 h-9 rounded-md flex items-center justify-center border"
+                style={{
+                  backgroundColor: `${tpl.accent}22`,
+                  borderColor: `${tpl.accent}55`,
+                }}
               >
-                <LayoutTemplate className="w-5 h-5" style={{ color: tpl.accent }} />
+                <span
+                  className="material-symbols-outlined text-[18px]"
+                  style={{ color: tpl.accent }}
+                >
+                  layout
+                </span>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold">{tpl.name}</h3>
-                <p className="text-[13px] text-[#A1A5AE] mt-1">{tpl.description}</p>
-                <p className="text-[11px] text-[#6C707A] mt-2">{tpl.plan.length} slides · {tpl.audience}</p>
+                <h3 className="text-sm font-semibold">{tpl.name}</h3>
+                <p className="text-xs text-gs-secondary mt-1.5 leading-relaxed">
+                  {tpl.description}
+                </p>
+                <div className="mt-3">
+                  <Chip>
+                    {tpl.plan.length} slides · {tpl.audience}
+                  </Chip>
+                </div>
               </div>
-              <Button
-                onPress={() => useTemplate(tpl.id)}
-                isLoading={busy === tpl.id}
-                className="bg-white text-black font-medium rounded-xl"
-                endContent={<ArrowRight className="w-4 h-4" />}
+              <button
+                type="button"
+                onClick={() => useTemplate(tpl.id)}
+                disabled={busy === tpl.id}
+                className="gs-btn-primary w-full"
               >
-                Use template
-              </Button>
-            </CardBody>
-          </Card>
-        ))}
+                {busy === tpl.id ? "Creating…" : "Use template"}
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
