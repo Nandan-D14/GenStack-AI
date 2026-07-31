@@ -46,3 +46,10 @@ Clerk auth. It turns a prompt/notes/PDF/URL into an editable slide deck. See
   (text-to-image; falls back to keyless on-topic stock images when unset).
 - The MiniMax-M3 text model is slow (~100s/call); slide generation is parallelized
   with bounded concurrency in `src/app/deck/[id]/plan/page.tsx`.
+
+### UI theme (Beautiful UI–inspired)
+- Design tokens live in `src/styles/tokens.css` and `tailwind.config.ts` under the
+  `gs-*` palette (near-black surfaces, hairline borders, GenStack violet `#7170FF`).
+- Shared primitives: `src/components/ui/*` and workspace chrome `src/components/AppShell.tsx`.
+- Prefer `gs-*` utilities / `.gs-*` component classes over one-off zinc hexes when
+  restyling pages.
